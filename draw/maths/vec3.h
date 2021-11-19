@@ -59,7 +59,7 @@ static inline float dot4(float *a, float *b) {
 }
 
 static inline float length3(float *b) {
-	return sqrt(
+	return sqrtf(
 		b[0]*b[0] +
 		b[1]*b[1] +
 		b[2]*b[2]

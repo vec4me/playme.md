@@ -50,7 +50,7 @@ static inline float dot2(float *a, float *b) {
 }
 
 static inline float length2(float *b) {
-	return sqrt(
+	return sqrtf(
 		b[0]*b[0] +
 		b[1]*b[1]
 	);
