@@ -34,16 +34,14 @@ let getSunDirection = () => {
 	]
 }
 
-let purge = () =>
-	exec('curl -X PURGE https://camo.githubusercontent.com/2c3a98caa31541e5309b804c4f496b847478315654aa4d7ed52cb55109620b0c/687474703a2f2f686f6d652e707975736f66742e636f6d3a353637392f72656e646572')
+let purge = call =>
+	exec('curl -X PURGE https://camo.githubusercontent.com/16aee965aab7e3856519823d251518dfc33a64e0e268c78827e471faaf753932/687474703a2f2f76756c74722e626c6f636b737265792e636f6d3a353637392f72656e646572', call)
 
-let decache = response => {
-	purge()
-
+let decache = response => purge(() => {
 	response.writeHead(302, {'Location': 'https://github.com/Blocksrey'})
 
 	response.end()
-}
+})
 
 setInterval(purge, 1000000)
 
