@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 
-static void writePPM(float buffer[][3], int width, int height, char *path) {
+static void writePPM(int *buffer, int width, int height, char *path) {
 	FILE *handle = fopen(path, "w");
 
 	fprintf(handle, "P6\n%i %i\n255\n", width, height);
@@ -11,9 +11,9 @@ static void writePPM(float buffer[][3], int width, int height, char *path) {
 	for (int i = 0; i < width*height; ++i) fprintf(
 		handle,
 		"%c%c%c",
-		(char)(255*buffer[i][0]),
-		(char)(255*buffer[i][1]),
-		(char)(255*buffer[i][2])
+		buffer[i]&255,
+		buffer[i]>>8&255,
+		buffer[i]>>16&255
 	);
 
 	fclose(handle);

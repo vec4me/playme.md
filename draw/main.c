@@ -1,27 +1,16 @@
-#include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include <stdint.h>
 #include "ppm.h"
 
-static float pixels[800*600][3];
+static int pixels[640*480];
 
-static float CR = 0;
-static float CG = 0;
-static float CB = 0;
+static int CUR_COLOR = 0;
 
-#define COLOR_PIXEL(X, Y, W)\
-	pixels[X + (W)*(Y)][0] = CR;\
-	pixels[X + (W)*(Y)][1] = CG;\
-	pixels[X + (W)*(Y)][2] = CB
+#define SET_COLOR(R, G, B) CUR_COLOR = R | G<<8 | B<<16
+#define COLOR_PIXEL(X, Y, W) pixels[X + Y*W] = CUR_COLOR
 
-#define SET_COLOR(R, G, B)\
-	CR = R;\
-	CG = G;\
-	CB = B
-
-#define MIX(a, b, x) ((a)*(1 - (x)) + (b)*(x))
-#define DOT(x0, y0, z0, x1, y1, z1) ((x0)*(x1) + (y0)*(y1) + (z0)*(z1))
+#define MIX(A, B, X) A + X*(B - A)
+#define DOT(AX, AY, AZ, BX, BY, BZ) AX*BX + AY*BY + AZ*BZ
 
 /*BLACK HOLE HAHA
 static float isqrt(float n) {
@@ -71,8 +60,6 @@ static void line(
 }
 */
 
-#include <time.h>
-
 int main(int argc, char **argv) {
 	float cx = 0;
 	float cy = 1.72f;
@@ -98,7 +85,7 @@ int main(int argc, char **argv) {
 	float c_ry = cosf(ry);
 	float s_ry = sinf(ry);
 
-	float fk = 0.000000000000000000001f;
+	float fk = 0.000000000000000001f;
 
 	float fl = (1 - powf(fk, cy))/logf(fk);
 	float fh = (powf(fk, 10000) - 1)/logf(fk);
@@ -127,29 +114,29 @@ int main(int argc, char **argv) {
 		dy *= is;
 		dz *= is;
 
+		float f;
+
+		float R;
+		float G;
+		float B;
+
 		if (dy < 0) {
 			float z = cy/-dy;
 
 			float hx = cx + z*dx;
 			float hz = cz + z*dz;
 
-			float f = fminf(fl/dy, 1);
+			f = fminf(fl/dy, 1);
 
-			float R = 0.3f;
-			float G = (1 + sinf(4*hx))/6 + 0.2f;
-			float B = 0;
+			R = 0.3f;
+			G = (1 + sinf(4*hx))/6 + 0.2f;
+			B = 0;
 
 			if ((int)hx%16 < 2 || (int)hz%24 < 1.5) {
 				R = 0.2f;
 				G = 0.2f;
 				B = 0.2f;
 			}
-
-			SET_COLOR(
-				MIX(R, AR, f),
-				MIX(G, AG, f),
-				MIX(B, AB, f)
-			);
 		}
 		else {
 			float z = 1000/dy;
@@ -159,11 +146,11 @@ int main(int argc, char **argv) {
 
 			float l = DOT(dx, dy, dz, sdx, sdy, sdz);
 
-			float f = fminf(fh/dy, 1);
+			f = fminf(fh/dy, 1);
 
-			float R = 0.737f;
-			float G = 0;
-			float B = 0.176f;
+			R = 0.737f;
+			G = 0;
+			B = 0.176f;
 
 			if (l < 0.98f) {
 				R = 0.5f - 0.5f*dy;
@@ -179,13 +166,13 @@ int main(int argc, char **argv) {
 				B = 1 - 0.2f*clouds;
 			}
 			//*/
-
-			SET_COLOR(
-				MIX(R, AR, f),
-				MIX(G, AG, f),
-				MIX(B, AB, f)
-			);
 		}
+
+		SET_COLOR(
+			(int)(255*(MIX(R, AR, f))),
+			(int)(255*(MIX(G, AG, f))),
+			(int)(255*(MIX(B, AB, f)))
+		);
 
 		COLOR_PIXEL(px, py, W);
 	}
