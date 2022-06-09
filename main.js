@@ -120,7 +120,7 @@ console.log(asd.azimuth*180/Math.PI, asd.altitude*180/Math.PI)
 let state = JSON.parse(readFileSync('state'))
 
 let close = () => {
-	console.log('ahhh fuck we saving this nigga')
+	console.log('ahhh fuck we saving this bruh')
 	writeFileSync('state', JSON.stringify(state))
 	process.exit()
 }
@@ -156,6 +156,7 @@ let decache = response => {
 	purge()
 
 	response.writeHead(302, {'Location': 'https://github.com/Blocksrey'})
+	//response.writeHead(302, {'Location': 'http://192.168.1.101:8000/pretty.html'})
 
 	response.end()
 }
