@@ -1,9 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
-
 #include <unistd.h>
 #include <netinet/in.h>
-
 #include "content.h"
 
 int main() {
@@ -20,13 +18,13 @@ int main() {
 	unsigned them_info_size = sizeof them_info;
 
 	int them_sock;
-	char readBuffer[1024];
+	char read_buffer[1024] = {0};
 
 	for (;;) {
 		them_sock = accept(us_sock, (struct sockaddr *)&them_info, &them_info_size);
-		send(them_sock, content, contentLength, 0);
-		recv(them_sock, readBuffer, sizeof readBuffer, 0);
-		printf("recv: %s\n", readBuffer);
+		send(them_sock, content, content_length, 0);
+		recv(them_sock, read_buffer, sizeof read_buffer, 0);
+		printf("%s\n", read_buffer);
 		close(them_sock);
 	}
 }
