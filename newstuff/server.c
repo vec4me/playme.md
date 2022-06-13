@@ -25,10 +25,8 @@ int main() {
 	for (;;) {
 		them_sock = accept(us_sock, (struct sockaddr *)&them_info, &them_info_size);
 		send(them_sock, content, contentLength, 0);
-
-		while (recv(them_sock, readBuffer, sizeof readBuffer, MSG_DONTWAIT) > 0)
-			printf("%s\n", readBuffer);
-
+		recv(them_sock, readBuffer, sizeof readBuffer, 0);
+		printf("recv: %s\n", readBuffer);
 		close(them_sock);
 	}
 }

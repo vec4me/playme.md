@@ -19,9 +19,9 @@ int main(int argc, char **argv) {
     size_t handleLength = getHandleLength(handle);
 
     // create a buffer to be sent
-    char *content = malloc(128);
+    char *content = malloc(256);
     // append the header info
-    sprintf(content, "HTTP/1.1 200 OK\r\nCache-Control: max-age=0\r\nContent-Type: image/gif\r\nContent-Length: %li\r\n\r\n", handleLength);
+    sprintf(content, "HTTP/1.1 200 OK\r\nCache-Control: max-age=0\r\nConnection: close\r\nContent-Length: %li\r\nContent-Type: image/png\r\n\r\n", handleLength);
     // get the current length of the string
     size_t templateLength = strlen(content);
     // reallocate enough memory for file contents
@@ -32,10 +32,10 @@ int main(int argc, char **argv) {
 	size_t contentLength = templateLength + handleLength;
 
 	FILE *out = fopen("content.h", "w");
-	fprintf(out, "static unsigned char content[] = {");
+	fprintf(out, "static unsigned char content[]={");
 	for (size_t i = 0; i < contentLength; ++i)
 		fprintf(out, "0x%x,", (unsigned char)content[i]);
-	fprintf(out, "};\nstatic size_t contentLength = %zu;\n", contentLength);
+	fprintf(out,"};\nstatic size_t contentLength=%zu;\n", contentLength);
 	fclose(out);
 
 	return 0;
