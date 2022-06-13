@@ -121,7 +121,9 @@ let state = JSON.parse(readFileSync('state'))
 
 let close = () => {
 	console.log('ahhh fuck we saving this bruh')
+
 	writeFileSync('state', JSON.stringify(state))
+
 	process.exit()
 }
 
@@ -149,19 +151,11 @@ let getSunDirection = () => {
 	]
 }
 
-let purge = call =>
-	exec('curl -X PURGE https://camo.githubusercontent.com/e09b59429fb6006e654509fac211a438807bb23638e832beec181df01f69a357/687474703a2f2f686f6d652e626c6f636b737265792e636f6d3a353637392f72656e646572', call)
-
 let decache = response => {
-	purge()
-
 	response.writeHead(302, {'Location': 'https://github.com/Blocksrey'})
-	//response.writeHead(302, {'Location': 'http://192.168.1.101:8000/pretty.html'})
 
 	response.end()
 }
-
-setInterval(purge, 1000000)
 
 let actions = {}
 
@@ -192,7 +186,7 @@ actions.down = response => {
 }
 
 actions.render = response => {
-	response.setHeader('Cache-Control', 'no-cache, no-store')
+	response.setHeader('Connection', 'close')
 	response.setHeader('Content-Type', 'image/gif')
 
 	let sequence = [
