@@ -16,13 +16,13 @@ import {exec} from 'child_process'
 
 
 var PI   = Math.PI,
-    sin  = Math.sin,
-    cos  = Math.cos,
-    tan  = Math.tan,
-    asin = Math.asin,
-    atan = Math.atan2,
-    acos = Math.acos,
-    rad  = PI / 180;
+	sin  = Math.sin,
+	cos  = Math.cos,
+	tan  = Math.tan,
+	asin = Math.asin,
+	atan = Math.atan2,
+	acos = Math.acos,
+	rad  = PI / 180;
 
 // sun calculations are based on http://aa.quae.nl/en/reken/zonpositie.html formulas
 
@@ -30,8 +30,8 @@ var PI   = Math.PI,
 // date/time constants and conversions
 
 var dayMs = 1000 * 60 * 60 * 24,
-    J1970 = 2440588,
-    J2000 = 2451545;
+	J1970 = 2440588,
+	J2000 = 2451545;
 
 function toJulian(date) { return date.valueOf() / dayMs - 0.5 + J1970; }
 function fromJulian(j)  { return new Date((j + 0.5 - J1970) * dayMs); }
@@ -51,12 +51,12 @@ function altitude(H, phi, dec) { return asin(sin(phi) * sin(dec) + cos(phi) * co
 function siderealTime(d, lw) { return rad * (280.16 + 360.9856235 * d) - lw; }
 
 function astroRefraction(h) {
-    if (h < 0) // the following formula works for positive altitudes only.
-        h = 0; // if h = -0.08901179 a div/0 would occur.
+	if (h < 0) // the following formula works for positive altitudes only.
+		h = 0; // if h = -0.08901179 a div/0 would occur.
 
-    // formula 16.4 of "Astronomical Algorithms" 2nd edition by Jean Meeus (Willmann-Bell, Richmond) 1998.
-    // 1.02 / tan(h + 10.26 / (h + 5.10)) h in degrees, result in arc minutes -> converted to rad:
-    return 0.0002967 / Math.tan(h + 0.00312536 / (h + 0.08901179));
+	// formula 16.4 of "Astronomical Algorithms" 2nd edition by Jean Meeus (Willmann-Bell, Richmond) 1998.
+	// 1.02 / tan(h + 10.26 / (h + 5.10)) h in degrees, result in arc minutes -> converted to rad:
+	return 0.0002967 / Math.tan(h + 0.00312536 / (h + 0.08901179));
 }
 
 // general sun calculations
@@ -65,38 +65,38 @@ function solarMeanAnomaly(d) { return rad * (357.5291 + 0.98560028 * d); }
 
 function eclipticLongitude(M) {
 
-    var C = rad * (1.9148 * sin(M) + 0.02 * sin(2 * M) + 0.0003 * sin(3 * M)), // equation of center
-        P = rad * 102.9372; // perihelion of the Earth
+	var C = rad * (1.9148 * sin(M) + 0.02 * sin(2 * M) + 0.0003 * sin(3 * M)), // equation of center
+		P = rad * 102.9372; // perihelion of the Earth
 
-    return M + C + P + PI;
+	return M + C + P + PI;
 }
 
 function sunCoords(d) {
 
-    var M = solarMeanAnomaly(d),
-        L = eclipticLongitude(M);
+	var M = solarMeanAnomaly(d),
+		L = eclipticLongitude(M);
 
-    return {
-        dec: declination(L, 0),
-        ra: rightAscension(L, 0)
-    };
+	return {
+		dec: declination(L, 0),
+		ra: rightAscension(L, 0)
+	};
 }
 
 function getPosition(date, lat, lng) {
 
-    var lw  = rad * -lng,
-        phi = rad * lat,
-        d   = toDays(date),
+	var lw  = rad * -lng,
+		phi = rad * lat,
+		d   = toDays(date),
 
-        c  = sunCoords(d),
-        H  = siderealTime(d, lw) - c.ra;
+		c  = sunCoords(d),
+		H  = siderealTime(d, lw) - c.ra;
 
-        console.log(c.dec*180/Math.PI, c.ra*180/Math.PI)
+		console.log(c.dec*180/Math.PI, c.ra*180/Math.PI)
 
-    return {
-        azimuth: azimuth(H, phi, c.dec),
-        altitude: altitude(H, phi, c.dec)
-    };
+	return {
+		azimuth: azimuth(H, phi, c.dec),
+		altitude: altitude(H, phi, c.dec)
+	};
 };
 
 

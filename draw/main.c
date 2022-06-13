@@ -12,18 +12,6 @@ static int CUR_COLOR = 0;
 #define MIX(A, B, X) A + X*(B - A)
 #define DOT(AX, AY, AZ, BX, BY, BZ) AX*BX + AY*BY + AZ*BZ
 
-/*BLACK HOLE HAHA
-static float isqrt(float n) {
-	float f = n;
-	int i = 0;
-
-	i = 0x5f3759df - (i >> 1);
-	f *= 0.5f*(3 - n*f*f);
-
-	return f;
-}
-*/
-
 static float isqrt(float n) {
 	union {
 		int i;
@@ -35,30 +23,6 @@ static float isqrt(float n) {
 
 	return u.f;
 }
-
-/*
-static void line(
-	int *o,
-	int *d,
-	int W
-) {
-	int ox = o[0];
-	int oy = o[1];
-
-	float dx = (float)d[0];
-	float dy = (float)d[1];
-
-	float i = isqrt(dx*dx + dy*dy);
-
-	for (float u = 0; u < 1; u += i) {
-		COLOR_PIXEL(
-			ox + (int)(dx*u),
-			oy + (int)(dy*u),
-			W
-		);
-	}
-}
-*/
 
 int main(int argc, char **argv) {
 	float cx = 0;

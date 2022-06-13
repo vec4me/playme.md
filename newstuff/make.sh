@@ -1,4 +1,4 @@
-clang -Weverything gen.c -o gen
-./gen $1
-rm gen
+clang -Weverything static.c -o static
+./static $1
+rm static
 clang -Weverything server.c -o server
