@@ -186,6 +186,7 @@ actions.D = response => {
 }
 
 actions.V = response => {
+	response.setHeader('Cache-Control', 'max-age=0')
 	response.setHeader('Connection', 'close')
 	response.setHeader('Content-Type', 'image/gif')
 
@@ -194,7 +195,7 @@ actions.V = response => {
 		state.px, state.pz,
 		state.ry,
 		...getSunDirection(),
-		'; ./cook'
+		'; ./cook.sh'
 	]
 
 	exec(

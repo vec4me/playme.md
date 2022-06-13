@@ -1,4 +1,3 @@
-#!/usr/bin/bash
 set -e
-cd $(dirname $0)
+cd `dirname $0`
 clang *.c -Weverything -std=c99 -lm -o render
