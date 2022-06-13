@@ -159,33 +159,33 @@ let decache = response => {
 
 let actions = {}
 
-actions.right = response => {
+actions.R = response => {
 	decache(response)
 
 	state.ry += Math.PI/4
 }
 
-actions.left = response => {
+actions.L = response => {
 	decache(response)
 
 	state.ry -= Math.PI/4
 }
 
-actions.up = response => {
+actions.U = response => {
 	decache(response)
 
 	state.px -= 2*Math.sin(state.ry)
 	state.pz += 2*Math.cos(state.ry)
 }
 
-actions.down = response => {
+actions.D = response => {
 	decache(response)
 
 	state.px += Math.sin(state.ry)
 	state.pz -= Math.cos(state.ry)
 }
 
-actions.render = response => {
+actions.V = response => {
 	response.setHeader('Connection', 'close')
 	response.setHeader('Content-Type', 'image/gif')
 
