@@ -1,29 +1,29 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 int main(int argc, char **argv) {
-	(void)argc;
+	(void)argc; // damn that's cool
 
-	FILE *input = fopen(argv[1], "r");
-	fseek(input, 0, SEEK_END);
-	size_t input_length = (size_t)ftell(input);
+	char header[] = "HTTP/1.1 200 OK\r\nCache-Control: max-age=0\r\nConnection: close\r\nContent-Type: image/jpeg\r\n\r\n";
+	size_t header_length = sizeof header - 1; // we want the length of the header, not the string
 
-	char *buffer = malloc(256);
-	sprintf(buffer, "HTTP/1.1 200 OK\r\nCache-Control: max-age=0\r\nConnection: close\r\nContent-Length: %li\r\nContent-Type: image/jpeg\r\n\r\n", input_length);
-	size_t header_length = strlen(buffer);
-	size_t buffer_length = header_length + input_length;
-	buffer = realloc(buffer, buffer_length);
+	FILE *body = fopen(argv[1], "r");
+	fseek(body, 0, SEEK_END);
+	size_t body_length = (size_t)ftell(body);
 
-	rewind(input);
-	fread(buffer + header_length, sizeof(char), input_length, input);
+	char *content = malloc(header_length + body_length);
+	sprintf(content, "%s", header); // write header
+	rewind(body); // rewind the shit...
+	fread(content + header_length, sizeof(char), body_length, body); // write body
 
-	FILE *output = fopen("content.h", "w");
-	fprintf(output, "static unsigned char content[]={");
-	for (size_t i = 0; i < buffer_length; ++i)
-		fprintf(output, "0x%x,", (unsigned char)buffer[i]);
-	fprintf(output, "};\nstatic size_t content_length=%zu;\n", buffer_length);
-	fclose(output);
+	FILE *file = fopen("content.h", "w");
+	fprintf(file, "static unsigned char content[]={");
+	for (size_t index = 0; index < header_length + body_length; ++index)
+		fprintf(file, "0x%x,", (unsigned char)content[index]);
+	fprintf(file, "};\nstatic size_t content_length=%zu;\n", header_length + body_length);
+	fclose(file);
+
+	free(content); // free the memory
 
 	return 0;
 }
