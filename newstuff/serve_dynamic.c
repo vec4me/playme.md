@@ -67,7 +67,7 @@ int main() {
 				cx += sinf(ry);
 				cz -= cosf(ry);
 			}
-			send(them_sock, "HTTP/1.1 200 OK\r\nConnection: close\r\n\r\nTHANKS BITCH", 50, 0);
+			send(them_sock, "HTTP/1.1 302 Found\r\nConnection: close\r\nLocation: https://github.com/Blocksrey\r\n\r\nWHAT THE FUCK", 80, 0);
 		}
 
 		close(them_sock);
