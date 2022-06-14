@@ -2,8 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <netinet/in.h>
-#include "content.h"
-#include <string.h>
+#include "response.h"
 
 int main() {
 	struct sockaddr_in us_info;
@@ -20,29 +19,11 @@ int main() {
 
 	int them_sock;
 	char read_buffer[1024] = {0};
-	char *find;
-	char action;
 
 	for (;;) {
 		them_sock = accept(us_sock, (struct sockaddr *)&them_info, &them_info_size);
 		recv(them_sock, read_buffer, sizeof read_buffer, 0);
-		find = strchr(read_buffer, '/');
-		action = find ? find[1] : 'V';
-
-		if (action == 'V')
-			send(them_sock, content, content_length, 0);
-		else {
-			if (action == 'R')
-				printf("R\n");
-			if (action == 'L')
-				printf("L\n");
-			if (action == 'U')
-				printf("U\n");
-			if (action == 'D')
-				printf("D\n");
-			send(them_sock, "HTTP/1.1 200 OK\r\nConnection: close\r\n\r\nTHANKS BITCH", 50, 0);
-		}
-
+		send(them_sock, response, response_length, 0);
 		close(them_sock);
 	}
 }
