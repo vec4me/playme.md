@@ -153,41 +153,35 @@ let getSunDirection = () => {
 
 let decache = response => {
 	response.writeHead(302, {'Location': 'https://github.com/Blocksrey'})
-
+	//response.end('<a href="https://github.com/Blocksrey">See Other</a>')
 	response.end()
 }
 
 let actions = {}
 
 actions.R = response => {
-	decache(response)
-
 	state.ry += Math.PI/4
+	decache(response)
 }
 
 actions.L = response => {
-	decache(response)
-
 	state.ry -= Math.PI/4
+	decache(response)
 }
 
 actions.U = response => {
-	decache(response)
-
 	state.px -= 2*Math.sin(state.ry)
 	state.pz += 2*Math.cos(state.ry)
+	decache(response)
 }
 
 actions.D = response => {
-	decache(response)
-
 	state.px += Math.sin(state.ry)
 	state.pz -= Math.cos(state.ry)
+	decache(response)
 }
 
 actions.V = response => {
-	response.setHeader('Cache-Control', 'max-age=0')
-	response.setHeader('Connection', 'close')
 	response.setHeader('Content-Type', 'image/gif')
 
 	let sequence = [
@@ -208,9 +202,15 @@ actions.V = response => {
 }
 
 createServer((request, response) => {
-	response.removeHeader('Date')
+	//response.removeHeader('Date')
 	response.removeHeader('Connection')
 	response.removeHeader('Keep-Alive')
+	response.removeHeader('Transfer-Encoding')
+	response.removeHeader('Content-Length')
+
+	response.statusCode = 200
+	response.setHeader('Cache-Control', 'max-age=0')
+        response.setHeader('Connection', 'close')
 
 	console.log(request.url)
 

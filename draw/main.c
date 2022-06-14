@@ -2,7 +2,7 @@
 #include <math.h>
 #include "ppm.h"
 
-static int pixels[640*480];
+static int pixels[600*400];
 
 static int CUR_COLOR = 0;
 
@@ -58,8 +58,8 @@ int main(int argc, char **argv) {
 	float AG = 0.929412f;
 	float AB = 0.854902f;
 
-	const int W = 640;
-	const int H = 480;
+	const int W = 600;
+	const int H = 400;
 
 	for (int p = W*H; p--;) {
 		int px = p%W;
