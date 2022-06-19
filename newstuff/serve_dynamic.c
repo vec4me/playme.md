@@ -25,8 +25,8 @@ int main() {
 
 	char run_string[128];
 
-	float cx = 0.0f;
-	float cz = 0.0f;
+	float cx = 2000.0f;
+	float cz = 2000.0f;
 
 	float ry = 0.0f;
 
@@ -44,6 +44,7 @@ int main() {
 
 		if (*action == 'V') {
 			sprintf(run_string, "cd ../draw; ./render %f %f %f %f %f %f; ./cook.sh", (double)cx, (double)cz, (double)ry, (double)sdx, (double)sdy, (double)sdz);
+			printf("%s\n", run_string);
 			system(run_string);
 
 			response = generate_response("../draw/baked/cool.gif");
