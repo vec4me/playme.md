@@ -43,7 +43,7 @@ int main() {
 		printf("%c\n", *action);
 
 		if (*action == 'V') {
-			sprintf(run_string, "cd ../draw; ./render %f %f %f %f %f %f; ./cook.sh", (double)cx, (double)cz, (double)ry, (double)sdx, (double)sdy, (double)sdz);
+			sprintf(run_string, "cd draw; ./render %f %f %f %f %f %f; ./cook.sh", (double)cx, (double)cz, (double)ry, (double)sdx, (double)sdy, (double)sdz);
 			printf("%s\n", run_string);
 			system(run_string);
 
