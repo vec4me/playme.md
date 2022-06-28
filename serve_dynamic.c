@@ -47,7 +47,7 @@ int main() {
 			printf("%s\n", run_string);
 			system(run_string);
 
-			response = generate_response("../draw/baked/cool.gif");
+			response = generate_response("draw/baked/cool.gif");
 
 			send(them_sock, response.content, response.content_length, 0);
 
