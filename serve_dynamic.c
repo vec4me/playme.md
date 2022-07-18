@@ -34,6 +34,13 @@ int main() {
 	float sdy = 0.0f;
 	float sdz = 0.0f;
 
+	char LETS_READ[100000] = {0};
+
+	FILE *handle = popen("cat dilla.jpg | ffmpeg -loglevel quiet -i - -f gif -", "r");
+	while (fgets(LETS_READ, 100, handle) != NULL)
+		printf("%s\n", LETS_READ);
+	pclose(handle);
+
 	for (;;) {
 		them_sock = accept(us_sock, (struct sockaddr *)&them_info, &them_info_size);
 		recv(them_sock, read_buffer, sizeof read_buffer, 0);

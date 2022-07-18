@@ -3,20 +3,16 @@
 
 #include <stdio.h>
 
-static void writePPM(int *buffer, int width, int height, char *path) {
-	FILE *handle = fopen(path, "w");
+static void writePPM(int *fb, int w, int h, FILE *handle) {
+	fprintf(handle, "P6\n%i %i\n255\n", w, h);
 
-	fprintf(handle, "P6\n%i %i\n255\n", width, height);
-
-	for (int i = 0; i < width*height; ++i) fprintf(
+	for (int i = w*h; i--;) fprintf(
 		handle,
 		"%c%c%c",
-		buffer[i]&255,
-		buffer[i]>>8&255,
-		buffer[i]>>16&255
+		fb[i]&255,
+		fb[i]>>8&255,
+		fb[i]>>16&255
 	);
-
-	fclose(handle);
 }
 
 #endif
