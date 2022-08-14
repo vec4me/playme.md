@@ -38,7 +38,7 @@ int main() {
 
 	FILE *handle = popen("cat dilla.jpg | ffmpeg -loglevel quiet -i - -f gif -", "r");
 	while (fgets(LETS_READ, 100, handle) != NULL)
-		printf("%s\n", LETS_READ);
+		break; //printf("%s\n", LETS_READ);
 	pclose(handle);
 
 	for (;;) {
@@ -51,7 +51,7 @@ int main() {
 
 		if (*action == 'V') {
 			sprintf(run_string, "cd draw; ./render %f %f %f %f %f %f; ./cook.sh", (double)cx, (double)cz, (double)ry, (double)sdx, (double)sdy, (double)sdz);
-			printf("%s\n", run_string);
+			//printf("%s\n", run_string);
 			system(run_string);
 
 			response = generate_response("draw/baked/cool.gif");
