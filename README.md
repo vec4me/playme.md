@@ -1,15 +1,18 @@
 # PLAYME Server
+Explore an interactive 3D world on your GitHub's README page
+![](draw/baked/cool.gif)
 
-## What does it do?
-Basically, it just hosts an HTTP server and sends a 3D scene to those who access the page. It's particularly useful for interactive GitHub READMEs.
+## Dependencies
+- FFmpeg
+- Some C compiler with libc
 
 ## Building
-Go to the 'newstuff' folder and either build the dynamic or static server. Example code:
+Run the ```make_serve_dynamic.sh``` script with a POSIX compliant shell. Example:
 ```
-gcc serve_dynamic.c -o server
+sh make_serve_dynamic.sh
 ```
 
-## Run the stuff
+## Execution
 Now just run the server with:
 ```
 ./server
