@@ -34,12 +34,11 @@ int main() {
 	float sdy = 0.0f;
 	float sdz = 0.0f;
 
-	char LETS_READ[100000] = {0};
-
-	FILE *handle = popen("cat dilla.jpg | ffmpeg -loglevel quiet -i - -f gif -", "r");
-	while (fgets(LETS_READ, 100, handle) != NULL)
-		break; //printf("%s\n", LETS_READ);
-	pclose(handle);
+	//char LETS_READ[100000] = {0};
+	//FILE *handle = popen("cat dilla.jpg | ffmpeg -loglevel quiet -i - -f gif -", "r");
+	//while (fgets(LETS_READ, 100, handle) != NULL)
+	//	break; //printf("%s\n", LETS_READ);
+	//pclose(handle);
 
 	for (;;) {
 		them_sock = accept(us_sock, (struct sockaddr *)&them_info, &them_info_size);
@@ -50,10 +49,6 @@ int main() {
 		printf("%c\n", *action);
 
 		if (*action == 'V') {
-			sprintf(run_string, "cd draw; ./render %f %f %f %f %f %f; ./cook.sh", (double)cx, (double)cz, (double)ry, (double)sdx, (double)sdy, (double)sdz);
-			//printf("%s\n", run_string);
-			system(run_string);
-
 			response = generate_response("draw/baked/cool.gif");
 
 			send(them_sock, response.content, response.content_length, 0);
@@ -75,6 +70,11 @@ int main() {
 				cx += sinf(ry);
 				cz -= cosf(ry);
 			}
+
+			sprintf(run_string, "cd draw; ./render %f %f %f %f %f %f; ./cook.sh", (double)cx, (double)cz, (double)ry, (double)sdx, (double)sdy, (double)sdz);
+			//printf("%s\n", run_string);
+			system(run_string);
+
 			send(them_sock, "HTTP/1.1 302 Found\r\nConnection: close\r\nLocation: https://github.com/Blocksrey\r\n\r\nWHAT THE FUCK", 80, 0);
 		}
 
