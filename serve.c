@@ -26,7 +26,7 @@ int main() {
 	float sdz = 0;
 
 	char buff_i[6]; // The request should only be 3 letters long (GET) or this will break completely
-	char buff_o[40000] = "HTTP/1.1 200 OK\r\nCache-Control: max-age=0\r\nConnection: close\r\nContent-Type: image/gif\r\n\r\n";
+	char buff_o[30000] = "HTTP/1.1 200 OK\r\nCache-Control: max-age=0\r\nConnection: close\r\nContent-Type: image/gif\r\n\r\n";
 	size_t head_l = 89;
 
 	for (;;) {
@@ -34,16 +34,19 @@ int main() {
 		recv(sock_t, buff_i, sizeof buff_i, 0);
 		char type = buff_i[5];
 
+		putchar(type);
+		putchar('\n');
+
 		if (type == 'V') {
 			FILE *hand = popen("./nihonrender/render | ffmpeg -loglevel 0 -i - -f gif -sws_dither bayer -", "r");
-
+			memset(buff_o + head_l, 0, sizeof buff_o - head_l);
 			fread(buff_o + head_l, sizeof buff_o - head_l, 1, hand);
+			pclose(hand);
 
 			char *term = buff_o + sizeof buff_o - 1;
 			while (*term-- != ';') {}
 
 			send(sock_t, buff_o, (size_t)(term - buff_o + 2), 0);
-			pclose(hand);
 		}
 		else {
 			if (type == 'R') {
