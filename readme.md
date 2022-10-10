@@ -1,4 +1,4 @@
-# PLAYME Server
+# playme.md
 Explore an interactive 3D world on your GitHub's README page
 ![](draw/baked/cool.gif)
 

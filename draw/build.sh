@@ -1,1 +1,0 @@
-clang main.c -Weverything -std=c99 -lm -o render
