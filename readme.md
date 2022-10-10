@@ -1,19 +1,21 @@
 # playme.md
-Explore an interactive 3D world on your GitHub's README page
-![](draw/baked/cool.gif)
+Explore an interactive 3D world within your GitHub's readme.md!
+![](assets/pretty.gif)
 
 ## Dependencies
 - FFmpeg
-- Some C compiler with libc
+- Some C compiler
+- libc
 
 ## Building
-Run the ```make_serve_dynamic.sh``` script with a POSIX compliant shell. Example:
+Run the ```make.sh``` files located in both program folders. Example with POSIX-compliant shell:
 ```
-sh make_serve_dynamic.sh
+sh make.sh
+sh nihonrender/make.sh
 ```
 
 ## Execution
 Now just run the server with:
 ```
-./server
+./serve
 ```
