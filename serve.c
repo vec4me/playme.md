@@ -34,10 +34,10 @@ int main() {
 	unsigned info_t_s = sizeof info_t;
 
 	enum { cx, cy, cz, ry, sdx, sdy, sdz, n_acts };
-	int arg[] = { 0, 10000, 0, 30, 0, 0, 255 };
+	int arg[] = { 0, 10000, 0, 0, 0, 0, 127 };
 
 	char buff_i[6]; // The request should only be 3 letters long (GET) or this will break completely
-	char buff_o[100000] = "HTTP/1.1 200 OK\r\nCache-Control: max-age=0\r\nConnection: close\r\nContent-Type: image/gif\r\n\r\n";
+	char buff_o[400000] = "HTTP/1.1 200 OK\r\nCache-Control: max-age=0\r\nConnection: close\r\nContent-Type: image/gif\r\n\r\n";
 	size_t head_s = 89;
 
 	char cmd[255];
@@ -51,7 +51,7 @@ int main() {
 		putchar('\n');
 
 		if (type == 'V') {
-			sprintf(cmd, "./nihonrender/render %f %f %f %f %f %f %f | ffmpeg -loglevel 0 -i - -f gif -sws_dither bayer -", (double)arg[cx], (double)arg[cy], (double)arg[cz], (double)arg[ry], (double)arg[sdx], (double)arg[sdy], (double)arg[sdz]);
+			sprintf(cmd, "./Asahi-Renderer/render %f %f %f %f %f %f %f | ffmpeg -loglevel 0 -i - -f gif -vf 'split[a][b];[a]palettegen[p];[b][p]paletteuse' -", (double)arg[cx], (double)arg[cy], (double)arg[cz], (double)arg[ry], (double)arg[sdx], (double)arg[sdy], (double)arg[sdz]);
 
 			FILE *hand = popen(cmd, "r");
 			fread(buff_o + head_s, sizeof buff_o - head_s, 1, hand);
@@ -64,10 +64,10 @@ int main() {
 		}
 		else {
 			if (type == 'R') {
-				arg[ry] += 32;
+				arg[ry] -= 32;
 			}
 			if (type == 'L') {
-				arg[ry] -= 32;
+				arg[ry] += 32;
 			}
 			if (type == 'U') {
 				arg[cx] -= 33*sin[arg[ry]&255];

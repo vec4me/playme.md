@@ -1,5 +1,6 @@
 # playme.md
 Explore an interactive 3D world within your GitHub's readme.md!
+
 ![](assets/pretty.gif)
 
 ## Dependencies
