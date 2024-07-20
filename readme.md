@@ -9,10 +9,10 @@ Explore an interactive 3D world within your GitHub's readme.md!
 - libc
 
 ## Building
-Run the ```make.sh``` files located in both program folders. Example with POSIX-compliant shell:
+Run the ```build.sh``` files located in both program folders. Example with POSIX-compliant shell:
 ```
-sh make.sh
-sh nihonrender/make.sh
+sh build.sh
+sh asahi_renderer/build.sh
 ```
 
 ## Execution
@@ -20,3 +20,6 @@ Now just run the server with:
 ```
 ./serve
 ```
+
+# Extra
+The bin folder contains Heroku-related binaries. Yes, this runs on Heroku, just connect the repository and go.

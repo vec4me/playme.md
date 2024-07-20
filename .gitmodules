@@ -1,3 +1,3 @@
-[submodule "Asahi-Renderer"]
-	path = Asahi-Renderer
-	url = https://github.com/blocksrey/Asahi-Renderer.git
+[submodule "asahi_renderer"]
+	path = asahi_renderer
+	url = https://github.com/blocksrey/asahi_renderer.git

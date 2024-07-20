@@ -50,8 +50,8 @@ int main() {
 		putchar(type);
 		putchar('\n');
 
-		if (type == 'V') {
-			sprintf(cmd, "./Asahi-Renderer/render %f %f %f %f %f %f %f | ffmpeg -loglevel 0 -i - -f gif -vf 'split[a][b];[a]palettegen[p];[b][p]paletteuse' -", (double)arg[cx], (double)arg[cy], (double)arg[cz], (double)arg[ry], (double)arg[sdx], (double)arg[sdy], (double)arg[sdz]);
+		if (type == 'v') {
+			sprintf(cmd, "./asahi_renderer/render %f %f %f %f %f %f %f | ffmpeg -loglevel 0 -i - -f gif -vf 'split[a][b];[a]palettegen[p];[b][p]paletteuse' -", (double)arg[cx], (double)arg[cy], (double)arg[cz], (double)arg[ry], (double)arg[sdx], (double)arg[sdy], (double)arg[sdz]);
 
 			FILE *hand = popen(cmd, "r");
 			fread(buff_o + head_s, sizeof buff_o - head_s, 1, hand);
@@ -63,17 +63,17 @@ int main() {
 			send(sock_t, buff_o, 1 + (size_t)(term - buff_o), 0);
 		}
 		else {
-			if (type == 'R') {
+			if (type == 'r') {
 				arg[ry] -= 32;
 			}
-			if (type == 'L') {
+			if (type == 'l') {
 				arg[ry] += 32;
 			}
-			if (type == 'U') {
+			if (type == 'u') {
 				arg[cx] -= 33*sin[arg[ry]&255];
 				arg[cz] += 33*cos[arg[ry]&255];
 			}
-			if (type == 'D') {
+			if (type == 'd') {
 				arg[ry] += 64;
 			}
 
