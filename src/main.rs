@@ -65,13 +65,13 @@ async fn handle_request(
         Ok(response)
     } else {
         match action {
-            'h' => state.arg[Actions::Ry as usize] -= 32,
-            'l' => state.arg[Actions::Ry as usize] += 32,
+            'h' => state.arg[Actions::Ry as usize] += 32,
+            'l' => state.arg[Actions::Ry as usize] -= 32,
             'k' => {
                 let sin: Vec<i32> = (0..=255).map(|x| (x as f32).sin() as i32).collect();
                 let cos: Vec<i32> = (0..=255).map(|x| (x as f32).cos() as i32).collect();
-                state.arg[Actions::Cx as usize] -= 3000 * sin[state.arg[Actions::Ry as usize] as usize & 255];
-                state.arg[Actions::Cz as usize] += 3000 * cos[state.arg[Actions::Ry as usize] as usize & 255];
+                state.arg[Actions::Cx as usize] -= 4000 * sin[state.arg[Actions::Ry as usize] as usize & 255];
+                state.arg[Actions::Cz as usize] += 4000 * cos[state.arg[Actions::Ry as usize] as usize & 255];
             }
             'j' => state.arg[Actions::Ry as usize] += 64,
             _ => {}
