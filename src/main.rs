@@ -51,6 +51,11 @@ async fn handle_request(req: Request<Body>) -> Result<Response<Body>, hyper::Err
 			.body(Body::from(image.stdout))
 			.unwrap();
 
+		response.headers_mut().insert(
+			PRAGMA,
+			HeaderValue::from_static("no-cache"),
+		);
+
 		Ok(response)
 	} else {
 		match action {
@@ -73,6 +78,11 @@ async fn handle_request(req: Request<Body>) -> Result<Response<Body>, hyper::Err
 			.header(header::LOCATION, redirect_url)
 			.body(Body::empty())
 			.unwrap();
+
+		response.headers_mut().insert(
+			PRAGMA,
+			HeaderValue::from_static("no-cache"),
+		);
 
 		Ok(response)
 	}
