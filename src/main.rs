@@ -56,15 +56,11 @@ async fn handle_request(
             .output()
             .unwrap();
 
-        let mut response = Response::builder()
+        let response = Response::builder()
+            .header(header::CACHE_CONTROL, "max-age=0")
             .header(header::CONTENT_TYPE, "image/gif")
             .body(Body::from(image.stdout))
             .unwrap();
-
-        response.headers_mut().insert(
-            header::PRAGMA,
-            HeaderValue::from_static("no-cache"),
-        );
 
         Ok(response)
     } else {
@@ -82,16 +78,12 @@ async fn handle_request(
         }
 
         let redirect_url = "https://github.com/blocksrey";
-        let mut response = Response::builder()
+        let response = Response::builder()
             .status(302)
+            .header(header::CACHE_CONTROL, "max-age=0")
             .header(header::LOCATION, redirect_url)
             .body(Body::empty())
             .unwrap();
-
-        response.headers_mut().insert(
-            header::PRAGMA,
-            HeaderValue::from_static("no-cache"),
-        );
 
         Ok(response)
     }
