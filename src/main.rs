@@ -29,7 +29,7 @@ async fn handle_request(req: Request<Body>) -> Result<Response<Body>, hyper::Err
 
 	if action == 'v' {
 		let cmd = format!(
-			"./asahi_renderer/render {} {} {} {} {} {} {} | ffmpeg -loglevel 0 -i - -f gif -vf 'split[a][b];[a]palettegen[p];[b][p]paletteuse' -",
+			"./render {} {} {} {} {} {} {} | ffmpeg -loglevel 0 -i - -f gif -vf 'split[a][b];[a]palettegen[p];[b][p]paletteuse' -",
 			arg[Actions::Cx as usize],
 			arg[Actions::Cy as usize],
 			arg[Actions::Cz as usize],
