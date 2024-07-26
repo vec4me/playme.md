@@ -1,4 +1,5 @@
 use hyper::{Body, Request, Response, Server, header};
+use hyper::header::{PRAGMA, HeaderValue};
 use hyper::service::{make_service_fn, service_fn};
 use std::env;
 use std::net::SocketAddr;
@@ -46,7 +47,7 @@ async fn handle_request(req: Request<Body>) -> Result<Response<Body>, hyper::Err
 			.unwrap();
 
 		// We could probably make this faster with piping
-		let response = Response::builder()
+		let mut response = Response::builder()
 			.header(header::CONTENT_TYPE, "image/gif")
 			.body(Body::from(image.stdout))
 			.unwrap();
@@ -73,7 +74,7 @@ async fn handle_request(req: Request<Body>) -> Result<Response<Body>, hyper::Err
 
 		// Redirect the user to a different page
 		let redirect_url = "https://github.com/blocksrey";
-		let response = Response::builder()
+		let mut response = Response::builder()
 			.status(302)
 			.header(header::LOCATION, redirect_url)
 			.body(Body::empty())
