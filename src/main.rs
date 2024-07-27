@@ -1,5 +1,4 @@
 use hyper::{Body, Request, Response, Server, header};
-use hyper::header::{HeaderValue};
 use hyper::service::{make_service_fn, service_fn};
 use std::sync::{Arc, Mutex};
 use std::env;
@@ -40,7 +39,7 @@ async fn handle_request(
         println!("{}", state.arg[Actions::Ry as usize]);
 
         let cmd = format!(
-            "./render {} {} {} {} {} {} {} | ffmpeg -loglevel 0 -i - -f gif -vf 'split[a][b];[a]palettegen[p];[b][p]paletteuse' -",
+            "./asahi_renderer {} {} {} {} {} {} {} | ffmpeg -loglevel 0 -i - -f gif -vf 'split[a][b];[a]palettegen[p];[b][p]paletteuse' -",
             state.arg[Actions::Cx as usize],
             state.arg[Actions::Cy as usize],
             state.arg[Actions::Cz as usize],

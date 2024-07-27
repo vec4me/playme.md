@@ -4,22 +4,27 @@ Explore an interactive 3D world within your GitHub's readme.md!
 ![](assets/pretty.gif)
 
 ## Dependencies
-- FFmpeg
-- Some C compiler
-- libc
+- Rust (with `cargo`)
 
 ## Building
-Run the ```build.sh``` files located in both program folders. Example with POSIX-compliant shell:
+To build the project, ensure you have Rust and Cargo installed. Then, navigate to the project directory and run:
+
+```sh
+cargo build --release
 ```
-sh build.sh
-sh asahi_renderer/build.sh
-```
+
+For any specific dependencies or setup, refer to the Cargo.toml file in the root directory and the asahi_renderer subdirectory, if applicable.
 
 ## Execution
-Now just run the server with:
+After building, you can run the server with:
+
+```sh
+cargo run
 ```
-./serve
+or
+```sh
+./target/release/serve
 ```
 
-# Extra
-The bin folder contains Heroku-related binaries. Yes, this runs on Heroku, just connect the repository and go.
+## Extra
+To deploy this project on Heroku, you need the Rust buildpack. You can find it at https://github.com/emk/heroku-buildpack-rust. Just connect the repository and deploy using this buildpack.
