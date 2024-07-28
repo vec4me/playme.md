@@ -13,7 +13,7 @@ macro_rules! fixed {
 	};
 }
 
-macro_rules! normal {
+macro_rules! defixed {
 	($v: expr) => {
 		$v >> SHIFT
 	};
@@ -102,7 +102,7 @@ fn get_trig_tables() -> ([i32; 256], [i32; 256]) {
 
 	let mut cos_table = [0; 256];
 	for i in 0..256 {
-		cos_table[i as usize] = sin_table[(i + PI/2 & 255) as usize];
+		cos_table[i as usize] = sin_table[(i + PI & 255) as usize];
 	}
 
 	(cos_table, sin_table)
