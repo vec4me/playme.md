@@ -82,7 +82,7 @@ const SIN_COS:([i32;256],[i32;256])=(
 	[0, 3, 6, 9, 12, 16, 19, 22, 25, 28, 31, 34, 37, 40, 43, 46, 49, 51, 54, 57, 60, 63, 65, 68, 71, 73, 76, 78, 81, 83, 85, 88, 90, 92, 94, 96, 98, 100, 102, 104, 106, 107, 109, 111, 112, 113, 115, 116, 117, 118, 120, 121, 122, 122, 123, 124, 125, 125, 126, 126, 126, 127, 127, 127, 127, 127, 127, 127, 126, 126, 126, 125, 125, 124, 123, 122, 122, 121, 120, 118, 117, 116, 115, 113, 112, 111, 109, 107, 106, 104, 102, 100, 98, 96, 94, 92, 90, 88, 85, 83, 81, 78, 76, 73, 71, 68, 65, 63, 60, 57, 54, 51, 49, 46, 43, 40, 37, 34, 31, 28, 25, 22, 19, 16, 12, 9, 6, 3, 0, -3, -6, -9, -12, -16, -19, -22, -25, -28, -31, -34, -37, -40, -43, -46, -49, -51, -54, -57, -60, -63, -65, -68, -71, -73, -76, -78, -81, -83, -85, -88, -90, -92, -94, -96, -98, -100, -102, -104, -106, -107, -109, -111, -112, -113, -115, -116, -117, -118, -120, -121, -122, -122, -123, -124, -125, -125, -126, -126, -126, -127, -127, -127, -127, -127, -127, -127, -126, -126, -126, -125, -125, -124, -123, -122, -122, -121, -120, -118, -117, -116, -115, -113, -112, -111, -109, -107, -106, -104, -102, -100, -98, -96, -94, -92, -90, -88, -85, -83, -81, -78, -76, -73, -71, -68, -65, -63, -60, -57, -54, -51, -49, -46, -43, -40, -37, -34, -31, -28, -25, -22, -19, -16, -12, -9, -6, -3]
 );
 
-fn render_to_gif(state:&mut State)->Vec<u8>{
+fn render_to_gif(mut state:std::sync::MutexGuard<'_,State>)->Vec<u8>{
 	let (cos, sin) = &SIN_COS;
 
 	let camera_heading_cos = cos[state.camera_heading as usize & 255];
@@ -216,7 +216,7 @@ impl std::str::FromStr for Action{
 
 async fn handle_request(
 	req: hyper::Request<hyper::body::Incoming>,
-	state: &mut State,
+	mut state: std::sync::MutexGuard<'_,State>,
 ) -> Result<Response<Full<VecDeque<u8>>>, Infallible> {
 	let action = req.uri().path().parse::<Action>();//parse() uses FromStr
 
@@ -263,7 +263,7 @@ async fn main() {
 	let header = format!("P6\n{} {}\n255\n", VIEW_SIZE_X, VIEW_SIZE_Y).into_bytes();
 	let buffer_size = header.len() + VIEW_SIZE_X * VIEW_SIZE_Y * 3;
 
-	let mut state = State {
+	let state = std::sync::Mutex::new(State {
 		image_buffer: {
 			let mut buffer = vec![0; buffer_size];
 			buffer[..header.len()].copy_from_slice(&header);
@@ -272,7 +272,7 @@ async fn main() {
 		camera_position: Vec3 { x: 0, y: 4000, z: 0 },
 		camera_heading: 0,
 		light_direction: Vec3 { x: 0, y: 0, z: 127 },
-	};
+	});
 
 
 	//https://github.com/hyperium/hyper/blob/master/examples/hello.rs
@@ -285,7 +285,7 @@ async fn main() {
 		if let Err(err)=hyper::server::conn::http1::Builder::new()
 		.timer(hyper_util::rt::TokioTimer::new())
 		.serve_connection(io,hyper::service::service_fn(|body|async{
-			handle_request(body,&mut state).await
+			handle_request(body,state.lock().unwrap()).await
 		}))
 		.await{
 			println!("Error serving connection: {:?}",err);
