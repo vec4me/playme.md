@@ -166,7 +166,7 @@ async fn handle_request(
 					divide!(CLOUD_HEIGHT, pixel_direction.y)
 				}
 				else if pixel_direction.y < 0 {
-					divide!(state_lock.camera_position.y, pixel_direction.y)
+					divide!(-state_lock.camera_position.y, pixel_direction.y)
 				}
 				else {
 					0
@@ -254,8 +254,8 @@ async fn handle_request(
 		'l' => state_lock.camera_heading += PI/2,
 		'h' => state_lock.camera_heading -= PI/2,
 		'k' => {
-			state_lock.camera_position.z -= fixed!(1)*cos!(state_lock.camera_heading)/4;
-			state_lock.camera_position.x += fixed!(1)*sin!(state_lock.camera_heading)/4;
+			state_lock.camera_position.z += fixed!(1)*cos!(state_lock.camera_heading)/4;
+			state_lock.camera_position.x -= fixed!(1)*sin!(state_lock.camera_heading)/4;
 		}
 		'j' => state_lock.camera_heading += PI,
 		_ => {},
