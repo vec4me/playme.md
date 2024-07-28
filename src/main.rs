@@ -164,8 +164,6 @@ fn render_to_gif(mut state:std::sync::MutexGuard<'_,State>)->Vec<u8>{
 		}
 	}
 
-	let image_buffer = state.image_buffer.clone();
-
 	let mut ffmpeg = Command::new("ffmpeg")
 	    .arg("-loglevel")
 	    .arg("0")
@@ -182,7 +180,7 @@ fn render_to_gif(mut state:std::sync::MutexGuard<'_,State>)->Vec<u8>{
 	    .expect("Failed to spawn ffmpeg process");
 
     let stdin = ffmpeg.stdin.as_mut().expect("Failed to open stdin");
-    stdin.write_all(&image_buffer).expect("Failed to write to stdin");
+    stdin.write_all(&state.image_buffer).expect("Failed to write to stdin");
 
 	let output = ffmpeg.wait_with_output().expect("Failed to read ffmpeg output");
 	let gif_buffer = output.stdout;
