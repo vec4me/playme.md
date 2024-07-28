@@ -1,4 +1,6 @@
 use hyper::{Response, header};
+use http_body_util::Full;
+use std::collections::VecDeque;
 use std::convert::Infallible;
 use std::env;
 use std::net::SocketAddr;
@@ -215,7 +217,7 @@ impl std::str::FromStr for Action{
 async fn handle_request(
 	req: hyper::Request<hyper::body::Incoming>,
 	state: &mut State,
-) -> Result<Response<Vec<u8>>, Infallible> {
+) -> Result<Response<Full<VecDeque<u8>>>, Infallible> {
 	let action = req.uri().path().parse::<Action>();//parse() uses FromStr
 
 	println!("{action:?}");
@@ -227,7 +229,7 @@ async fn handle_request(
 			let response = Response::builder()
 			    .header(header::CACHE_CONTROL, "max-age=0")
 			    .header(header::CONTENT_TYPE, "image/gif")
-			    .body(gif_buffer)
+			    .body(Full::new(VecDeque::from(gif_buffer)))
 			    .unwrap();
 
 			return Ok(response);
@@ -247,7 +249,7 @@ async fn handle_request(
 		.status(302)
 		.header(header::CACHE_CONTROL, "max-age=0")
 		.header(header::LOCATION, "https://github.com/blocksrey")
-		.body(Vec::new())
+		.body(Full::default())
 		.unwrap();
 
 	Ok(response)
