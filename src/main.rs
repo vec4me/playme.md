@@ -34,7 +34,7 @@ struct State {
 	light_direction: Vec3,
 }
 
-fn sqrt(n: u32) -> i32 {
+const fn sqrt(n: u32) -> i32 {
 	let (mut f, mut p, mut r) = (0u32, 1u32 << 30, n);
 	while p > r {
 		p >>= 2;
@@ -50,11 +50,11 @@ fn sqrt(n: u32) -> i32 {
 	f as i32
 }
 
-fn dot3(a: &Vec3, b: &Vec3) -> i32 {
+const fn dot3(a: &Vec3, b: &Vec3) -> i32 {
 	a.x * b.x + a.y * b.y + a.z * b.z
 }
 
-fn norm3(v: &Vec3) -> i32 {
+const fn norm3(v: &Vec3) -> i32 {
 	sqrt(dot3(v, v) as u32)
 }
 
