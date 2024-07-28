@@ -254,8 +254,8 @@ async fn handle_request(
 		'l' => state_lock.camera_heading += PI/2,
 		'h' => state_lock.camera_heading -= PI/2,
 		'k' => {
-			state_lock.camera_position.x -= fixed!(1)*sin!(state_lock.camera_heading);
-			state_lock.camera_position.z += fixed!(1)*cos!(state_lock.camera_heading);
+			state_lock.camera_position.z -= fixed!(1)*cos!(state_lock.camera_heading)/4;
+			state_lock.camera_position.x += fixed!(1)*sin!(state_lock.camera_heading)/4;
 		}
 		'j' => state_lock.camera_heading += PI,
 		_ => {},
