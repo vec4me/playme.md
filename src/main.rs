@@ -216,7 +216,7 @@ async fn handle_request(
 	req: hyper::Request<hyper::body::Incoming>,
 	state: &mut State,
 ) -> Result<Response<Vec<u8>>, Infallible> {
-	let action:Result<Action,_> = req.uri().path().parse();//parse() uses FromStr
+	let action = req.uri().path().parse::<Action>();//parse() uses FromStr
 
 	println!("{action:?}");
 
