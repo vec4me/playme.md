@@ -102,7 +102,7 @@ fn get_trig_tables() -> ([i32; 256], [i32; 256]) {
 
 	let mut cos_table = [0; 256];
 	for i in 0..256 {
-		cos_table[i as usize] = sin_table[((i + 65) & 255) as usize];
+		cos_table[i as usize] = sin_table[(i + PI/2 & 255) as usize];
 	}
 
 	(cos_table, sin_table)
@@ -183,16 +183,16 @@ async fn handle_request(
 					color!(G) = 0;
 					color!(B) = 45;
 
-					let sky = cos!(((cos!((hit.z >> 11) + 291) + (hit.x >> 8)) >> 1)) + cos!(hit.z/500)/4 + 30;
+					let sky = cos!(hit.z >> 9)/2 + cos!(fixed!(200 + sin!(hit.z >> 11)*6) + hit.x >> 9) + 32;
 					if sky < 0 {
 						color!(R) = sky as u8;
 						color!(G) = sky as u8;
 						color!(B) = sky as u8;
 					}
 					else if dot3(&pixel_direction, &state_lock.light_direction) < 128*fixed!(1) {
-						color!(R) = (128 - 128*pixel_direction.y/255) as u8;
-						color!(G) = (179 - 179*pixel_direction.y/255) as u8;
-						color!(B) = (255 - 76*pixel_direction.y/255) as u8;
+						color!(R) = (128 - multiply!(128, pixel_direction.y)) as u8;
+						color!(G) = (179 - multiply!(179, pixel_direction.y)) as u8;
+						color!(B) = (255 - multiply!(76, pixel_direction.y)) as u8;
 					}
 				}
 				else {
@@ -202,12 +202,13 @@ async fn handle_request(
 
 					if !(((hit.x >> 13)%7)*((hit.z >> 13)%9) != 0) {
 						color!(R) = 100;
+						// color!(G) = 100 + 4*(hit.x/20&31) as u8;
 						color!(G) = 100;
 						color!(B) = 110;
 					}
 					else {
 						color!(R) = 60;
-						color!(G) = (sin!((hit.x/20))/2 + 55) as u8;
+						color!(G) = (sin!(hit.x/20)/2 + 55) as u8;
 						color!(B) = 0;
 
 						// Checking if it's negative (overflow)
