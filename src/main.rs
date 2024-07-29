@@ -285,8 +285,10 @@ async fn handle_request(
 
 #[tokio::main]
 async fn main() {
-	let port = env::var("PORT").unwrap_or_else(|_| "7890".to_string());
-	let address = SocketAddr::from(([0, 0, 0, 0], port.parse().expect("Invalid port number")));
+	let port = env::var("PORT").map_or(7890,
+		|port_env|port_env.parse().expect("Invalid port number")
+	);
+	let address = SocketAddr::from(([0, 0, 0, 0], port));
 
 	let mut header=format!("P6\n{} {}\n255\n", VIEW_SIZE_X, VIEW_SIZE_Y).into_bytes();
 	assert_eq!(header.len(),HEADER_SIZE,"Update HEADER_SIZE");
