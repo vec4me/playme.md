@@ -381,7 +381,7 @@ async fn handle_request(
 	let input_action = request.uri().path().parse::<InputAction>()?; // parse() uses fromstr
 
 	// state_lock is moved into state_action here
-	let state_action = get_state_action(state.lock().unwrap(), input_action);
+	let state_action = get_state_action(state.lock().map_err(|_|anyhow::anyhow!("Lock failed"))?, input_action);
 	// state_lock is dropped at the end of state_action, meaning the lock is freed
 
 	let response = match state_action {
