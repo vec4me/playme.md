@@ -199,7 +199,7 @@ fn sun_direction(latitude: i32) -> Vec3 {
 	}
 }
 
-fn get_gif_buffer(header: &'static[u8], state: State) -> Vec<u8> {
+fn get_gif_buffer(header: &[u8], state: State) -> Vec<u8> {
 	let (cos, sin) = &TRIG;
 
 	sun_direction(0);
@@ -369,7 +369,7 @@ fn get_state_action(mut state_lock: std::sync::MutexGuard<'_, State>, input_acti
 }
 
 async fn handle_request(
-	header: &'static[u8],
+	header: &[u8],
 	req: hyper::Request<hyper::body::Incoming>,
 	state: Arc<Mutex<State>>,
 ) -> Result<Response<Full<VecDeque<u8>>>, Infallible> {
