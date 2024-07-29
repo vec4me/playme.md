@@ -1,10 +1,11 @@
-use hyper::service::{make_service_fn, service_fn};
-use hyper::{Body, Response, Server, header};
+use hyper::{Response, header};
+use http_body_util::Full;
+use std::collections::VecDeque;
 use std::convert::Infallible;
 use std::env;
-use std::io::Write;
 use std::net::SocketAddr;
 use std::process::{Command, Stdio};
+use std::io::Write;
 use std::sync::{Arc, Mutex};
 
 macro_rules! fixed {
@@ -39,6 +40,8 @@ const R: usize = 0;
 const G: usize = 1;
 const B: usize = 2;
 const PI: i32 = 64;
+const HEADER_SIZE: usize = 15;
+const BUFFER_SIZE: usize = (VIEW_SIZE_X*VIEW_SIZE_Y*3) as usize;
 
 fn sqrt(n: i32) -> i32 {
 	let (mut f, mut p, mut r) = (0, 1 << 30, n);
@@ -66,15 +69,15 @@ fn norm3(v: &Vec3) -> i32 {
 }
 
 // fn multiply(a: i32, b: i32) -> i32 {
-// 	(a*b) >> SHIFT
+	// (a*b) >> SHIFT
 // }
 
 // fn divide(a: i32, b: i32) -> i32 {
-// 	(a << SHIFT)/b
+	// (a << SHIFT)/b
 // }
 
 // fn fixed(v: i32) -> i32 {
-// 	v << SHIFT
+	// v << SHIFT
 // }
 
 fn unit3(v: &mut Vec3) {
@@ -84,251 +87,328 @@ fn unit3(v: &mut Vec3) {
 	v.z = divide!(v.z, n);
 }
 
-fn get_trig_tables() -> ([i32; 256], [i32; 256]) {
-	let sin_table: [i32; 256] = [
-		0, 3, 6, 9, 12, 16, 19, 22, 25, 28, 31, 34, 37, 40, 43, 46, 49, 51, 54, 57, 60, 63, 65, 68, 71, 73, 76, 78, 81,
-		83, 85, 88, 90, 92, 94, 96, 98, 100, 102, 104, 106, 107, 109, 111, 112, 113, 115, 116, 117, 118, 120, 121, 122,
-		122, 123, 124, 125, 125, 126, 126, 126, 127, 127, 127, 127, 127, 127, 127, 126, 126, 126, 125, 125, 124, 123,
-		122, 122, 121, 120, 118, 117, 116, 115, 113, 112, 111, 109, 107, 106, 104, 102, 100, 98, 96, 94, 92, 90, 88,
-		85, 83, 81, 78, 76, 73, 71, 68, 65, 63, 60, 57, 54, 51, 49, 46, 43, 40, 37, 34, 31, 28, 25, 22, 19, 16, 12, 9,
-		6, 3, 0, -3, -6, -9, -12, -16, -19, -22, -25, -28, -31, -34, -37, -40, -43, -46, -49, -51, -54, -57, -60, -63,
-		-65, -68, -71, -73, -76, -78, -81, -83, -85, -88, -90, -92, -94, -96, -98, -100, -102, -104, -106, -107, -109,
-		-111, -112, -113, -115, -116, -117, -118, -120, -121, -122, -122, -123, -124, -125, -125, -126, -126, -126,
-		-127, -127, -127, -127, -127, -127, -127, -126, -126, -126, -125, -125, -124, -123, -122, -122, -121, -120,
-		-118, -117, -116, -115, -113, -112, -111, -109, -107, -106, -104, -102, -100, -98, -96, -94, -92, -90, -88,
-		-85, -83, -81, -78, -76, -73, -71, -68, -65, -63, -60, -57, -54, -51, -49, -46, -43, -40, -37, -34, -31, -28,
-		-25, -22, -19, -16, -12, -9, -6, -3,
-	];
-
-	let mut cos_table = [0; 256];
-	for i in 0..256 {
-		cos_table[i as usize] = sin_table[(i + PI & 255) as usize];
-	}
-
-	(cos_table, sin_table)
+#[derive(Debug)]
+enum InputAction {
+	Render,
+	Right,
+	Left,
+	Forward,
+	Back
 }
 
-async fn handle_request(
-	req: hyper::Request<Body>,
-	state: Arc<Mutex<State>>,
-) -> Result<Response<Body>, Infallible> {
-	let action = req.uri().path().chars().nth(1).unwrap_or(' ');
+#[derive(Debug)]
+struct InvalidInputAction;
+impl std::str::FromStr for InputAction {
+	type Err = InvalidInputAction;
+	fn from_str(s: &str) -> Result<Self, Self::Err> {
+		match s {
+			"/v" => Ok(InputAction::Render),
+			"/l" => Ok(InputAction::Right),
+			"/h" => Ok(InputAction::Left),
+			"/k" => Ok(InputAction::Forward),
+			"/j" => Ok(InputAction::Back),
+			_ => Err(InvalidInputAction)
+		}
+	}
+}
 
-	let mut state_lock = state.lock().unwrap();
+enum StateAction {
+	Render(State),
+	DoNothing
+}
 
-	println!("{action}");
+const TRIG: ([i32; 256], [i32; 256]) = (
+	[127, 127, 127, 126, 126, 126, 125, 125, 124, 123, 122, 122, 121, 120, 118, 117, 116, 115, 113, 112, 111, 109, 107, 106, 104, 102, 100, 98, 96, 94, 92, 90, 88, 85, 83, 81, 78, 76, 73, 71, 68, 65, 63, 60, 57, 54, 51, 49, 46, 43, 40, 37, 34, 31, 28, 25, 22, 19, 16, 12, 9, 6, 3, 0, -3, -6, -9, -12, -16, -19, -22, -25, -28, -31, -34, -37, -40, -43, -46, -49, -51, -54, -57, -60, -63, -65, -68, -71, -73, -76, -78, -81, -83, -85, -88, -90, -92, -94, -96, -98, -100, -102, -104, -106, -107, -109, -111, -112, -113, -115, -116, -117, -118, -120, -121, -122, -122, -123, -124, -125, -125, -126, -126, -126, -127, -127, -127, -127, -127, -127, -127, -126, -126, -126, -125, -125, -124, -123, -122, -122, -121, -120, -118, -117, -116, -115, -113, -112, -111, -109, -107, -106, -104, -102, -100, -98, -96, -94, -92, -90, -88, -85, -83, -81, -78, -76, -73, -71, -68, -65, -63, -60, -57, -54, -51, -49, -46, -43, -40, -37, -34, -31, -28, -25, -22, -19, -16, -12, -9, -6, -3, 0, 3, 6, 9, 12, 16, 19, 22, 25, 28, 31, 34, 37, 40, 43, 46, 49, 51, 54, 57, 60, 63, 65, 68, 71, 73, 76, 78, 81, 83, 85, 88, 90, 92, 94, 96, 98, 100, 102, 104, 106, 107, 109, 111, 112, 113, 115, 116, 117, 118, 120, 121, 122, 122, 123, 124, 125, 125, 126, 126, 126, 127, 127, 127, 127],
+	[0, 3, 6, 9, 12, 16, 19, 22, 25, 28, 31, 34, 37, 40, 43, 46, 49, 51, 54, 57, 60, 63, 65, 68, 71, 73, 76, 78, 81, 83, 85, 88, 90, 92, 94, 96, 98, 100, 102, 104, 106, 107, 109, 111, 112, 113, 115, 116, 117, 118, 120, 121, 122, 122, 123, 124, 125, 125, 126, 126, 126, 127, 127, 127, 127, 127, 127, 127, 126, 126, 126, 125, 125, 124, 123, 122, 122, 121, 120, 118, 117, 116, 115, 113, 112, 111, 109, 107, 106, 104, 102, 100, 98, 96, 94, 92, 90, 88, 85, 83, 81, 78, 76, 73, 71, 68, 65, 63, 60, 57, 54, 51, 49, 46, 43, 40, 37, 34, 31, 28, 25, 22, 19, 16, 12, 9, 6, 3, 0, -3, -6, -9, -12, -16, -19, -22, -25, -28, -31, -34, -37, -40, -43, -46, -49, -51, -54, -57, -60, -63, -65, -68, -71, -73, -76, -78, -81, -83, -85, -88, -90, -92, -94, -96, -98, -100, -102, -104, -106, -107, -109, -111, -112, -113, -115, -116, -117, -118, -120, -121, -122, -122, -123, -124, -125, -125, -126, -126, -126, -127, -127, -127, -127, -127, -127, -127, -126, -126, -126, -125, -125, -124, -123, -122, -122, -121, -120, -118, -117, -116, -115, -113, -112, -111, -109, -107, -106, -104, -102, -100, -98, -96, -94, -92, -90, -88, -85, -83, -81, -78, -76, -73, -71, -68, -65, -63, -60, -57, -54, -51, -49, -46, -43, -40, -37, -34, -31, -28, -25, -22, -19, -16, -12, -9, -6, -3]
+);
 
-	let (cos_table, sin_table) = get_trig_tables();
+
+// fn get_sun_direction(latitude: f64) -> vec3 {
+	// let total_seconds = systemtime::now()
+		// .duration_since(unix_epoch)
+		// .map(|n| n.as_secs() + 9*3600)
+		// .unwrap_or(0);
+
+	// let time_in_hours = (total_seconds%86400) as f64/3600.0;
+	// let sun_angle_rad = ((time_in_hours - 12.0)*15.0).to_radians();
+
+	// let lat_rad = latitude.to_radians();
+
+	// let sx = cos!(sun_angle_rad);
+	// let sy = sin!(sun_angle_rad);
+	// let lx = cos!(lat_rad);
+	// let ly = sin!(lat_rad);
+
+	// println!(sx, sy, lx, ly);
+
+	// vec3 {
+		// x: sx,
+		// y: multiply!(sy, lx),
+		// z: ly
+	// }
+// }
+
+fn get_gif_buffer(header: &'static[u8], state: State) -> Vec<u8> {
+	let (cos, sin) = &TRIG;
 
 	macro_rules! cos {
 		($t: expr) => {
-			cos_table[($t & 255) as usize]
+			cos[($t & 255) as usize]
 		};
 	}
 
 	macro_rules! sin {
 		($t: expr) => {
-			sin_table[($t & 255) as usize]
+			sin[($t & 255) as usize]
 		};
 	}
 
-	let camera_right_x = cos!(state_lock.camera_heading);
-	let camera_right_z = -sin!(state_lock.camera_heading);
+	let mut image = header.to_owned();
 
-	match action {
-		'v' => {
-			for pixel_index in 0..(VIEW_SIZE_X*VIEW_SIZE_Y) as usize {
-				macro_rules! color {
-					($channel: expr) => {
-						state_lock.image_buffer[15 + 3*pixel_index + $channel]
-					};
-				}
+	let camera_right_z = -sin!(state.camera_heading);
+	let camera_right_x = cos!(state.camera_heading);
 
-				let pixel_position = Vec2 {
-					x: pixel_index as i32%VIEW_SIZE_X,
-					y: pixel_index as i32/VIEW_SIZE_X,
-				};
+	for pixel_index in 0..(VIEW_SIZE_X*VIEW_SIZE_Y) as usize {
+		macro_rules! color {
+			($channel: expr) => {
+				image[HEADER_SIZE + 3*pixel_index + $channel]
+			};
+		}
 
-				let view_offset = Vec2 {
-					x: VIEW_SIZE_X - (pixel_position.x << 1),
-					y: VIEW_SIZE_Y - (pixel_position.y << 1),
-				};
+		let pixel_position = Vec2 {
+			x: pixel_index as i32%VIEW_SIZE_X,
+			y: pixel_index as i32/VIEW_SIZE_X
+		};
 
-				let mut pixel_direction = Vec3 {
-					x: view_offset.x*camera_right_x/VIEW_SIZE_Y + camera_right_z,
-					y: divide!(view_offset.y, VIEW_SIZE_Y),
-					z: view_offset.x*-camera_right_z/VIEW_SIZE_Y + camera_right_x,
-				};
-				unit3(&mut pixel_direction);
+		let view_offset = Vec2 {
+			x: VIEW_SIZE_X - (pixel_position.x << 1),
+			y: VIEW_SIZE_Y - (pixel_position.y << 1)
+		};
 
-				let pixel_distance =
-				if pixel_direction.y > 0 {
-					divide!(CLOUD_HEIGHT, pixel_direction.y)
-				}
-				else if pixel_direction.y < 0 {
-					divide!(-state_lock.camera_position.y, pixel_direction.y)
-				}
-				else {
-					0
-				};
+		let mut pixel_direction = Vec3 {
+			x: view_offset.x*camera_right_x/VIEW_SIZE_Y + camera_right_z,
+			y: divide!(view_offset.y, VIEW_SIZE_Y),
+			z: view_offset.x*-camera_right_z/VIEW_SIZE_Y + camera_right_x
+		};
+		unit3(&mut pixel_direction);
 
-				let hit = Vec3 {
-					x: state_lock.camera_position.x + multiply!(pixel_distance, pixel_direction.x),
-					y: state_lock.camera_position.y + multiply!(pixel_distance, pixel_direction.y),
-					z: state_lock.camera_position.z + multiply!(pixel_distance, pixel_direction.z),
-				};
+		let light_direction = Vec3 {
+			x: 0,
+			y: 0,
+			z: fixed!(1)
+		};
 
-				if pixel_direction.y >= 0 {
-					color!(R) = 188;
-					color!(G) = 0;
-					color!(B) = 45;
+		let pixel_distance =
+		if pixel_direction.y > 0 {
+			divide!(CLOUD_HEIGHT, pixel_direction.y)
+		}
+		else if pixel_direction.y < 0 {
+			divide!(-state.camera_position.y, pixel_direction.y)
+		}
+		else {
+			0
+		};
 
-					let sky = cos!(hit.z >> 9)/2 + cos!(fixed!(200 + sin!(hit.z >> 11)*6) + hit.x >> 9) + 32;
-					if sky < 0 {
-						color!(R) = sky as u8;
-						color!(G) = sky as u8;
-						color!(B) = sky as u8;
-					}
-					else if dot3(&pixel_direction, &state_lock.light_direction) < 128*fixed!(1) {
-						color!(R) = (128 - multiply!(128, pixel_direction.y)) as u8;
-						color!(G) = (179 - multiply!(179, pixel_direction.y)) as u8;
-						color!(B) = (255 - multiply!(76, pixel_direction.y)) as u8;
-					}
-				}
-				else {
-					color!(R) = 77;
-					color!(G) = 40;
-					color!(B) = 0;
+		let hit = Vec3 {
+			x: state.camera_position.x + multiply!(pixel_distance, pixel_direction.x),
+			y: state.camera_position.y + multiply!(pixel_distance, pixel_direction.y),
+			z: state.camera_position.z + multiply!(pixel_distance, pixel_direction.z)
+		};
 
-					if !(((hit.x >> 13)%7)*((hit.z >> 13)%9) != 0) {
-						color!(R) = 100;
-						// color!(G) = 100 + 4*(hit.x/20&31) as u8;
-						color!(G) = 100;
-						color!(B) = 110;
-					}
-					else {
-						color!(R) = 60;
-						color!(G) = (sin!(hit.x/20)/2 + 55) as u8;
-						color!(B) = 0;
+		if pixel_direction.y >= 0 {
+			color!(R) = 188;
+			color!(G) = 0;
+			color!(B) = 45;
 
-						// Checking if it's negative (overflow)
-						if color!(G) > 200 {
-							color!(G) = 60;
-							color!(B) = 120;
-						}
-					}
+			let sky = cos!(hit.z >> 9)/2 + cos!(fixed!(200 + sin!(hit.z >> 11)*6) + hit.x >> 9) + 32;
+			if sky < 0 {
+				color!(R) = sky as u8;
+				color!(G) = sky as u8;
+				color!(B) = sky as u8;
+			}
+			else if dot3(&pixel_direction, &light_direction) < 128*fixed!(1) {
+				color!(R) = (128 - multiply!(128, pixel_direction.y)) as u8;
+				color!(G) = (179 - multiply!(179, pixel_direction.y)) as u8;
+				color!(B) = (255 - multiply!(76, pixel_direction.y)) as u8;
+			}
+		}
+		else {
+			color!(R) = 77;
+			color!(G) = 40;
+			color!(B) = 0;
+
+			if !(((hit.x >> 13)%7)*((hit.z >> 13)%9) != 0) {
+				color!(R) = 100;
+				// color!(G) = 100 + 4*(hit.x/20&31) as u8;
+				color!(G) = 100;
+				color!(B) = 110;
+			}
+			else {
+				color!(R) = 60;
+				color!(G) = (sin!(hit.x/20)/2 + 55) as u8;
+				color!(B) = 0;
+
+				// checking if it's negative(overflow)
+				if color!(G) > 200 {
+					color!(G) = 60;
+					color!(B) = 120;
 				}
 			}
-
-			let image_buffer = state_lock.image_buffer.clone();
-
-			let mut ffmpeg = Command::new("ffmpeg")
-				.arg("-loglevel")
-				.arg("0")
-				.arg("-i")
-				.arg("-")
-				.arg("-f")
-				.arg("gif")
-				.arg("-vf")
-				.arg("split[a][b];[a]palettegen[p];[b][p]paletteuse")
-				.arg("-")
-				.stdin(Stdio::piped())
-				.stdout(Stdio::piped())
-				.spawn()
-				.expect("Failed to spawn ffmpeg process");
-
-			let stdin = ffmpeg.stdin.as_mut().expect("Failed to open stdin");
-			stdin.write_all(&image_buffer).expect("Failed to write to stdin");
-
-			let output = ffmpeg.wait_with_output().expect("Failed to read ffmpeg output");
-			let gif_buffer = output.stdout;
-
-			let body = Body::from(gif_buffer);
-			let response = Response::builder()
-				.header(header::CACHE_CONTROL, "max-age=0")
-				.header(header::CONTENT_TYPE, "image/gif")
-				.body(body)
-				.unwrap();
-
-			return Ok(response);
 		}
-		'l' => state_lock.camera_heading += PI/2,
-		'h' => state_lock.camera_heading -= PI/2,
-		'k' => {
-			state_lock.camera_position.z += fixed!(1)*cos!(state_lock.camera_heading)/4;
-			state_lock.camera_position.x -= fixed!(1)*sin!(state_lock.camera_heading)/4;
-		}
-		'j' => state_lock.camera_heading += PI,
-		_ => {},
 	}
 
-	let response = Response::builder()
-		.status(302)
-		.header(header::CACHE_CONTROL, "max-age=0")
-		.header(header::LOCATION, "https://github.com/blocksrey")
-		.body(Body::empty())
-		.unwrap();
+	let mut ffmpeg = Command::new("ffmpeg")
+		.arg("-loglevel")
+		.arg("0")
+		.arg("-i")
+		.arg("-")
+		.arg("-f")
+		.arg("gif")
+		.arg("-vf")
+		.arg("split[a][b];[a]palettegen[p];[b][p]paletteuse")
+		.arg("-")
+		.stdin(Stdio::piped())
+		.stdout(Stdio::piped())
+		.spawn()
+		.expect("Failed to spawn ffmpeg process");
+
+	let stdin = ffmpeg.stdin.as_mut().expect("Failed to open stdin");
+	stdin.write_all(&image).expect("Failed to write to stdin");
+
+	let output = ffmpeg.wait_with_output().expect("Failed to read ffmpeg output");
+	let gif_buffer = output.stdout;
+
+	gif_buffer
+}
+
+fn get_state_action(mut state_lock: std::sync::MutexGuard<'_, State>, input_action: InputAction) -> StateAction {
+	let (cos, sin) = &TRIG;
+
+	macro_rules! cos {
+		($t: expr) => {
+			cos[($t & 255) as usize]
+		};
+	}
+
+	macro_rules! sin {
+		($t: expr) => {
+			sin[($t & 255) as usize]
+		};
+	}
+
+	match input_action {
+		// if the input_action is to render, make a copy of the current state
+		// so the lock can be dropped while the state is used for the render
+		InputAction::Render => return StateAction::Render(state_lock.clone()),
+		InputAction::Right => state_lock.camera_heading += PI/2,
+		InputAction::Left => state_lock.camera_heading -= PI/2,
+		InputAction::Forward => {
+			state_lock.camera_position.z += fixed!(1)*cos!(state_lock.camera_heading)/4;
+			state_lock.camera_position.x -= fixed!(1)*sin!(state_lock.camera_heading)/4;
+		},
+		InputAction::Back => {
+			state_lock.camera_position.z -= fixed!(1)*cos!(state_lock.camera_heading)/4;
+			state_lock.camera_position.x += fixed!(1)*sin!(state_lock.camera_heading)/4;
+		}
+	}
+	// otherwise do nothing after the input_action
+	StateAction::DoNothing
+}
+
+async fn handle_request(
+	header: &'static[u8],
+	req: hyper::Request<hyper::body::Incoming>,
+	state: Arc<Mutex<State>>,
+) -> Result<Response<Full<VecDeque<u8>>>, Infallible> {
+	let input_action = req.uri().path().parse::<InputAction>(); // parse() uses fromstr
+
+	// state_lock is moved into get_state_action here
+	let state_action = get_state_action(state.lock().unwrap(), input_action.unwrap());
+	// state_lock is dropped at the end of get_state_action, meaning the lock is freed
+
+	let response = match state_action {
+		StateAction::Render(state) => {
+			// render a cloned state while being free to serve more requests
+			let gif_buffer = get_gif_buffer(header, state);
+
+			Response::builder()
+				.header(header::CACHE_CONTROL, "max-age=0")
+				.header(header::CONTENT_TYPE, "image/gif")
+				.body(Full::new(VecDeque::from(gif_buffer)))
+				.unwrap()
+		},
+		StateAction::DoNothing => {
+			// don't render
+			Response::builder()
+				.status(302)
+				.header(header::CACHE_CONTROL, "max-age=0")
+				.header(header::LOCATION, "https://github.com/blocksrey")
+				.body(Full::default())
+				.unwrap()
+		}
+	};
 
 	Ok(response)
 }
 
 #[derive(Clone)]
 struct State {
-	image_buffer: Vec<u8>,
 	camera_position: Vec3,
-	camera_heading: i32,
-	light_direction: Vec3,
+	camera_heading: i32
 }
 
 #[derive(Copy, Clone)]
 struct Vec2 {
 	x: i32,
-	y: i32,
+	y: i32
 }
 
 #[derive(Copy, Clone)]
 struct Vec3 {
 	x: i32,
 	y: i32,
-	z: i32,
+	z: i32
 }
 
 #[tokio::main]
 async fn main() {
-	let port = env::var("PORT").unwrap_or_else(|_| "7890".to_string());
-	let address = SocketAddr::from(([0, 0, 0, 0], port.parse().expect("Invalid port number")));
+	let port = env::var("PORT").map_or(7890,
+		|port_env| port_env.parse().expect("Invalid port number")
+	);
+	let address = SocketAddr::from(([0, 0, 0, 0], port));
 
-	let header = format!("P6\n{} {}\n255\n", VIEW_SIZE_X, VIEW_SIZE_Y).into_bytes();
-	let buffer_size = header.len() + (3*VIEW_SIZE_X*VIEW_SIZE_Y) as usize;
+	let mut header = format!("P6\n{} {}\n255\n", VIEW_SIZE_X, VIEW_SIZE_Y).into_bytes();
+	assert_eq!(header.len(), HEADER_SIZE, "Update header size");
+	header.resize(HEADER_SIZE + BUFFER_SIZE, 0);
 
-	let mut state = State {
-		image_buffer: {
-			let mut buffer = vec![0; buffer_size];
-			buffer[..header.len()].copy_from_slice(&header);
-			buffer
-		},
-		camera_position: Vec3 { x: 0, y: fixed!(30), z: 0 },
-		camera_heading: 0,
-		light_direction: Vec3 { x: 0, y: 0, z: fixed!(1) },
-	};
-	unit3(&mut state.light_direction);
+	// use a memory leak to make a static reference to a byte slice
+	// it only runs once so does it really count as a memory leak?
+	// coerce &'static mut[u8]into &'static[u8]so the reference can be copied
+	let static_header: &'static[u8] = Box::new(header).leak();
 
-	let shared_state = Arc::new(Mutex::new(state));
+	let state = Arc::new(Mutex::new(State {
+		camera_position: Vec3 {x: 0, y: fixed!(30), z: 0},
+		camera_heading: 0
+	}));
 
-	let make_svc = make_service_fn(move |_conn| {
-		let state = Arc::clone(&shared_state);
-		async move {
-			Ok::<_, hyper::Error>(service_fn(move |req| {
-				let state = Arc::clone(&state);
-				handle_request(req, state)
-			}))
-		}
-	});
-
-	let server = Server::bind(&address).serve(make_svc);
+	// https:// github.com/hyperium/hyper/blob/master/examples/hello.rs
+	let listener = tokio::net::TcpListener::bind(address).await.unwrap();
 
 	println!("Listening on http://{}", address);
-	if let Err(e) = server.await {
-		eprintln!("Server error: {}", e);
+	loop {
+		let (tcp, _) = listener.accept().await.unwrap();
+		let io = hyper_util::rt::TokioIo::new(tcp);
+		let state = state.clone();
+		tokio::spawn(async move {
+			if let Err(err) = hyper::server::conn::http1::Builder::new()
+			.timer(hyper_util::rt::TokioTimer::new())
+			.serve_connection(io, hyper::service::service_fn(move |body|
+				// i couldn't tell you why it has to be cloned twice
+				handle_request(static_header, body, state.clone())
+			))
+			.await {
+				println!("Error serving connection: {:?}", err);
+			}
+		});
 	}
 }
