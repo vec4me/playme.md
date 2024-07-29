@@ -119,7 +119,7 @@ impl std::fmt::Display for InvalidInputAction{
 impl std::error::Error for InvalidInputAction{}
 impl std::str::FromStr for InputAction {
 	type Err = InvalidInputAction;
-	fn from_str(s: &str) -> Anyhow<Self, Self::Err> {
+	fn from_str(s: &str) -> Result<Self, Self::Err> {
 		match s {
 			"/v" => Ok(InputAction::Render),
 			"/l" => Ok(InputAction::Right),
