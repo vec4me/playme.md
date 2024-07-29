@@ -111,6 +111,12 @@ enum InputAction {
 
 #[derive(Debug)]
 struct InvalidInputAction;
+impl std::fmt::Display for InvalidInputAction{
+	fn fmt(&self,f:&mut std::fmt::Formatter<'_>)->std::fmt::Result{
+		write!(f,"{self:?}")
+	}
+}
+impl std::error::Error for InvalidInputAction{}
 impl std::str::FromStr for InputAction {
 	type Err = InvalidInputAction;
 	fn from_str(s: &str) -> Result<Self, Self::Err> {
