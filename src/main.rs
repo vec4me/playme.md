@@ -119,7 +119,7 @@ impl std::fmt::Display for InvalidInputAction{
 impl std::error::Error for InvalidInputAction{}
 impl std::str::FromStr for InputAction {
 	type Err = InvalidInputAction;
-	fn from_str(s: &str) -> Result<Self, Self::Err> {
+	fn from_str(s: &str) -> Anyhow<Self, Self::Err> {
 		match s {
 			"/v" => Ok(InputAction::Render),
 			"/l" => Ok(InputAction::Right),
@@ -381,7 +381,7 @@ async fn handle_request(
 	let input_action = request.uri().path().parse::<InputAction>(); // parse() uses fromstr
 
 	// state_lock is moved into state_action here
-	let state_action = get_state_action(state.lock().unwrap(), input_action.unwrap());
+	let state_action = get_state_action(state.lock().unwrap(), input_action?);
 	// state_lock is dropped at the end of state_action, meaning the lock is freed
 
 	let response = match state_action {
@@ -392,8 +392,7 @@ async fn handle_request(
 			Response::builder()
 				.header(header::CACHE_CONTROL, "max-age=0")
 				.header(header::CONTENT_TYPE, "image/gif")
-				.body(Full::new(VecDeque::from(gif_buffer)))
-				.unwrap()
+				.body(Full::new(VecDeque::from(gif_buffer)))?
 		},
 		StateAction::DoNothing => {
 			// don't render
@@ -401,8 +400,7 @@ async fn handle_request(
 				.status(302)
 				.header(header::CACHE_CONTROL, "max-age=0")
 				.header(header::LOCATION, "https://github.com/blocksrey")
-				.body(Full::default())
-				.unwrap()
+				.body(Full::default())?
 		}
 	};
 
@@ -429,7 +427,7 @@ struct Vec3 {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Anyhow<()> {
 	let port = env::var("PORT").map_or(7890,
 		|port| port.parse().unwrap()
 	);
@@ -449,13 +447,13 @@ async fn main() {
 		camera_heading: 0
 	}));
 
-	// https:// github.com/hyperium/hyper/blob/master/examples/hello.rs
-	let listener = tokio::net::TcpListener::bind(address).await.unwrap();
+	// https://github.com/hyperium/hyper/blob/master/examples/hello.rs
+	let listener = tokio::net::TcpListener::bind(address).await?;
 
 	println!("Listening on http://{}", address);
 
 	loop {
-		let (tcp, _) = listener.accept().await.unwrap();
+		let (tcp, _) = listener.accept().await?;
 		let io = hyper_util::rt::TokioIo::new(tcp);
 		let state = state.clone();
 		tokio::spawn(async move {
