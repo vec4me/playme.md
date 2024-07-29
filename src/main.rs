@@ -235,7 +235,11 @@ fn do_action(mut state_lock: std::sync::MutexGuard<'_,State>,action:Action)->Aft
 			state_lock.camera_position.x -= 4000 * sin[state_lock.camera_heading as usize & 255];
 			state_lock.camera_position.z += 4000 * cos[state_lock.camera_heading as usize & 255];
 		},
-		Action::Back => state_lock.camera_heading += 64,
+		Action::Back => {
+			let (cos, sin) = &SIN_COS;
+			state_lock.camera_position.x += 4000 * sin[state_lock.camera_heading as usize & 255];
+			state_lock.camera_position.z -= 4000 * cos[state_lock.camera_heading as usize & 255];
+		},
 	}
 	//otherwise do nothing after the action
 	AfterAction::DoNothing
