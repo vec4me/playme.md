@@ -170,15 +170,17 @@ fn render_to_gif(header:&'static [u8],state:State)->Vec<u8>{
 	}
 
 	let mut ffmpeg = Command::new("ffmpeg")
-	    .arg("-loglevel")
-	    .arg("0")
-	    .arg("-i")
-	    .arg("-")
-	    .arg("-f")
-	    .arg("gif")
-	    .arg("-vf")
-	    .arg("split[a][b];[a]palettegen[p];[b][p]paletteuse")
-	    .arg("-")
+	    .args([
+			"-loglevel",
+	    	"0",
+	    	"-i",
+	    	"-",
+	    	"-f",
+	    	"gif",
+	    	"-vf",
+	    	"split[a][b];[a]palettegen[p];[b][p]paletteuse",
+	    	"-",
+		])
 	    .stdin(Stdio::piped())
 	    .stdout(Stdio::piped())
 	    .spawn()
