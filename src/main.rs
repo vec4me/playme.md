@@ -1,7 +1,7 @@
+use anyhow::Result as Anyhow;
 use http_body_util::Full;
 use hyper::{Response, header};
 use std::collections::VecDeque;
-use std::convert::Infallible;
 use std::env;
 use std::io::Write;
 use std::net::SocketAddr;
@@ -199,7 +199,7 @@ fn sun_direction(latitude: i32) -> Vec3 {
 	}
 }
 
-fn get_gif_buffer(header: &[u8], state: State) -> Vec<u8> {
+fn get_gif_buffer(header: &[u8], state: State) -> Anyhow<Vec<u8>> {
 	let (cos, sin) = &TRIG;
 
 	sun_direction(0);
@@ -322,16 +322,15 @@ fn get_gif_buffer(header: &[u8], state: State) -> Vec<u8> {
 		.arg("-")
 		.stdin(Stdio::piped())
 		.stdout(Stdio::piped())
-		.spawn()
-		.unwrap();
+		.spawn()?;
 
-	let stdin = ffmpeg.stdin.as_mut().unwrap();
-	stdin.write_all(&image).unwrap();
+	let stdin = ffmpeg.stdin.as_mut().ok_or(anyhow::anyhow!("Failed to open stdin"))?;
+	stdin.write_all(&image)?;
 
-	let output = ffmpeg.wait_with_output().unwrap();
+	let output = ffmpeg.wait_with_output()?;
 	let gif_buffer = output.stdout;
 
-	gif_buffer
+	Ok(gif_buffer)
 }
 
 fn get_state_action(mut state_lock: std::sync::MutexGuard<'_, State>, input_action: InputAction) -> StateAction {
@@ -372,7 +371,7 @@ async fn handle_request(
 	header: &[u8],
 	request: hyper::Request<hyper::body::Incoming>,
 	state: Arc<Mutex<State>>,
-) -> Result<Response<Full<VecDeque<u8>>>, Infallible> {
+) -> Anyhow<Response<Full<VecDeque<u8>>>> {
 	let input_action = request.uri().path().parse::<InputAction>(); // parse() uses fromstr
 
 	// state_lock is moved into state_action here
@@ -382,7 +381,7 @@ async fn handle_request(
 	let response = match state_action {
 		StateAction::Render(state) => {
 			// render a cloned state while being free to serve more requests
-			let gif_buffer = get_gif_buffer(header, state);
+			let gif_buffer = get_gif_buffer(header, state)?;
 
 			Response::builder()
 				.header(header::CACHE_CONTROL, "max-age=0")
