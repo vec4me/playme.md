@@ -35,7 +35,7 @@ macro_rules! multiply {
 
 macro_rules! radian {
 	($v: expr) => {
-		multiply!(PI, $v)
+		multiply!(TAU, $v)/2
 	}
 }
 
@@ -45,7 +45,7 @@ macro_rules! divide {
 	}
 }
 
-const PI: i32 = 64;
+const TAU: i32 = 256;
 const SHIFT: i32 = 7;
 const CLOUD_HEIGHT: i32 = fix!(200);
 const VIEW_SIZE_X: i32 = 320;
@@ -130,8 +130,8 @@ enum StateAction {
 	DoNothing
 }
 
-const TRIG: ([i32; 256], [i32; 256]) = {
-	let sin: [i32; 256] = [
+const TRIG: ([i32; TAU as usize], [i32; TAU as usize]) = {
+	let sin: [i32; TAU as usize] = [
 		0, 3, 6, 9, 12, 16, 19, 22, 25, 28, 31, 34, 37, 40, 43, 46, 49, 51, 54, 57, 60, 63, 65, 68, 71, 73, 76, 78, 81,
 		83, 85, 88, 90, 92, 94, 96, 98, 100, 102, 104, 106, 107, 109, 111, 112, 113, 115, 116, 117, 118, 120, 121, 122,
 		122, 123, 124, 125, 125, 126, 126, 126, 127, 127, 127, 127, 127, 127, 127, 126, 126, 126, 125, 125, 124, 123,
@@ -146,12 +146,12 @@ const TRIG: ([i32; 256], [i32; 256]) = {
 		-25, -22, -19, -16, -12, -9, -6, -3,
 	];
 
-	let mut cos = [0; 256];
-	let mut i=0;
-	//for loops are not allowed at compile time
-	while i<256{
-		cos[i] = sin[(i + 65) & 255];
-		i+=1;
+	let mut cos = [0; TAU as usize];
+	let mut i = 0;
+	// for loops are not allowed at compile time
+	while i < TAU as usize {
+		cos[i] = sin[(i + (TAU/4) as usize) & 255];
+		i += 1;
 	}
 
 	(cos, sin)
@@ -323,12 +323,12 @@ fn get_gif_buffer(header: &[u8], state: State) -> Vec<u8> {
 		.stdin(Stdio::piped())
 		.stdout(Stdio::piped())
 		.spawn()
-		.expect("Failed to spawn ffmpeg process");
+		.unwrap();
 
-	let stdin = ffmpeg.stdin.as_mut().expect("Failed to open stdin");
-	stdin.write_all(&image).expect("Failed to write to stdin");
+	let stdin = ffmpeg.stdin.as_mut().unwrap();
+	stdin.write_all(&image).unwrap();
 
-	let output = ffmpeg.wait_with_output().expect("Failed to read ffmpeg output");
+	let output = ffmpeg.wait_with_output().unwrap();
 	let gif_buffer = output.stdout;
 
 	gif_buffer
@@ -353,8 +353,8 @@ fn get_state_action(mut state_lock: std::sync::MutexGuard<'_, State>, input_acti
 		// if the input_action is to render, make a copy of the current state
 		// so the lock can be dropped while the state is used for the render
 		InputAction::Render => return StateAction::Render(state_lock.clone()),
-		InputAction::Right => state_lock.camera_heading += PI/2,
-		InputAction::Left => state_lock.camera_heading -= PI/2,
+		InputAction::Right => state_lock.camera_heading += TAU/8,
+		InputAction::Left => state_lock.camera_heading -= TAU/8,
 		InputAction::Forward => {
 			state_lock.camera_position.z += fix!(1)*cos!(state_lock.camera_heading)/4;
 			state_lock.camera_position.x -= fix!(1)*sin!(state_lock.camera_heading)/4;
@@ -370,10 +370,10 @@ fn get_state_action(mut state_lock: std::sync::MutexGuard<'_, State>, input_acti
 
 async fn handle_request(
 	header: &[u8],
-	req: hyper::Request<hyper::body::Incoming>,
+	request: hyper::Request<hyper::body::Incoming>,
 	state: Arc<Mutex<State>>,
 ) -> Result<Response<Full<VecDeque<u8>>>, Infallible> {
-	let input_action = req.uri().path().parse::<InputAction>(); // parse() uses fromstr
+	let input_action = request.uri().path().parse::<InputAction>(); // parse() uses fromstr
 
 	// state_lock is moved into state_action here
 	let state_action = get_state_action(state.lock().unwrap(), input_action.unwrap());
@@ -426,7 +426,7 @@ struct Vec3 {
 #[tokio::main]
 async fn main() {
 	let port = env::var("PORT").map_or(7890,
-		|port_env| port_env.parse().expect("Invalid port number")
+		|port| port.parse().unwrap()
 	);
 	let address = SocketAddr::from(([0, 0, 0, 0], port));
 

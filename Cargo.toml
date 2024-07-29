@@ -8,3 +8,4 @@ http-body-util = "0.1.2"
 hyper = { version = "1.4.1", features = ["server", "http1"] }
 hyper-util = { version = "0.1.6", features = ["tokio"] }
 tokio = { version = "1.38.0", features = ["macros", "rt-multi-thread"] }
+anyhow = "1.0"
