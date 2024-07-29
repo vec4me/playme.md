@@ -1,49 +1,62 @@
-use hyper::{Response, header};
 use http_body_util::Full;
+use hyper::{Response, header};
 use std::collections::VecDeque;
 use std::convert::Infallible;
 use std::env;
+use std::io::Write;
 use std::net::SocketAddr;
 use std::process::{Command, Stdio};
-use std::io::Write;
 use std::sync::{Arc, Mutex};
+use std::time::{SystemTime, UNIX_EPOCH};
 
-macro_rules! fixed {
+macro_rules! fix {
 	($v: expr) => {
 		$v << SHIFT
-	};
+	}
 }
 
-macro_rules! defixed {
+macro_rules! defix {
 	($v: expr) => {
 		$v >> SHIFT
-	};
+	}
+}
+
+macro_rules! float {
+	($v: expr) => {
+		$v as f64/fix!(1) as f64
+	}
 }
 
 macro_rules! multiply {
 	($a: expr, $b: expr) => {
 		($a*$b) >> SHIFT
-	};
+	}
+}
+
+macro_rules! radian {
+	($v: expr) => {
+		multiply!(PI, $v)
+	}
 }
 
 macro_rules! divide {
 	($a: expr, $b: expr) => {
 		($a << SHIFT)/$b
-	};
+	}
 }
 
+const PI: i32 = 64;
 const SHIFT: i32 = 7;
-const CLOUD_HEIGHT: i32 = fixed!(200);
+const CLOUD_HEIGHT: i32 = fix!(200);
 const VIEW_SIZE_X: i32 = 320;
 const VIEW_SIZE_Y: i32 = 200;
 const R: usize = 0;
 const G: usize = 1;
 const B: usize = 2;
-const PI: i32 = 64;
 const HEADER_SIZE: usize = 15;
 const BUFFER_SIZE: usize = (VIEW_SIZE_X*VIEW_SIZE_Y*3) as usize;
 
-fn sqrt(n: i32) -> i32 {
+fn get_square_root(n: i32) -> i32 {
 	let (mut f, mut p, mut r) = (0, 1 << 30, n);
 	while p > r {
 		p >>= 2;
@@ -59,13 +72,13 @@ fn sqrt(n: i32) -> i32 {
 	f
 }
 
-fn dot3(a: &Vec3, b: &Vec3) -> i32 {
+fn get_dot_product(a: &Vec3, b: &Vec3) -> i32 {
 	// multiply!(a.x, b.x) + multiply!(a.y, b.y) + multiply!(a.z, b.z)
 	a.x*b.x + a.y*b.y + a.z*b.z
 }
 
-fn norm3(v: &Vec3) -> i32 {
-	sqrt(dot3(v, v))
+fn get_length(v: &Vec3) -> i32 {
+	get_square_root(get_dot_product(v, v))
 }
 
 // fn multiply(a: i32, b: i32) -> i32 {
@@ -76,12 +89,12 @@ fn norm3(v: &Vec3) -> i32 {
 	// (a << SHIFT)/b
 // }
 
-// fn fixed(v: i32) -> i32 {
+// fn fix(v: i32) -> i32 {
 	// v << SHIFT
 // }
 
-fn unit3(v: &mut Vec3) {
-	let n = norm3(v);
+fn unitize(v: &mut Vec3) {
+	let n = get_length(v);
 	v.x = divide!(v.x, n);
 	v.y = divide!(v.y, n);
 	v.z = divide!(v.z, n);
@@ -122,45 +135,63 @@ const TRIG: ([i32; 256], [i32; 256]) = (
 	[0, 3, 6, 9, 12, 16, 19, 22, 25, 28, 31, 34, 37, 40, 43, 46, 49, 51, 54, 57, 60, 63, 65, 68, 71, 73, 76, 78, 81, 83, 85, 88, 90, 92, 94, 96, 98, 100, 102, 104, 106, 107, 109, 111, 112, 113, 115, 116, 117, 118, 120, 121, 122, 122, 123, 124, 125, 125, 126, 126, 126, 127, 127, 127, 127, 127, 127, 127, 126, 126, 126, 125, 125, 124, 123, 122, 122, 121, 120, 118, 117, 116, 115, 113, 112, 111, 109, 107, 106, 104, 102, 100, 98, 96, 94, 92, 90, 88, 85, 83, 81, 78, 76, 73, 71, 68, 65, 63, 60, 57, 54, 51, 49, 46, 43, 40, 37, 34, 31, 28, 25, 22, 19, 16, 12, 9, 6, 3, 0, -3, -6, -9, -12, -16, -19, -22, -25, -28, -31, -34, -37, -40, -43, -46, -49, -51, -54, -57, -60, -63, -65, -68, -71, -73, -76, -78, -81, -83, -85, -88, -90, -92, -94, -96, -98, -100, -102, -104, -106, -107, -109, -111, -112, -113, -115, -116, -117, -118, -120, -121, -122, -122, -123, -124, -125, -125, -126, -126, -126, -127, -127, -127, -127, -127, -127, -127, -126, -126, -126, -125, -125, -124, -123, -122, -122, -121, -120, -118, -117, -116, -115, -113, -112, -111, -109, -107, -106, -104, -102, -100, -98, -96, -94, -92, -90, -88, -85, -83, -81, -78, -76, -73, -71, -68, -65, -63, -60, -57, -54, -51, -49, -46, -43, -40, -37, -34, -31, -28, -25, -22, -19, -16, -12, -9, -6, -3]
 );
 
+fn sun_direction(latitude: i32) -> Vec3 {
+	let total_seconds = SystemTime::now()
+		.duration_since(UNIX_EPOCH)
+		.map(|n| n.as_secs() + 9*3600)
+		.unwrap_or(0);
 
-// fn get_sun_direction(latitude: f64) -> vec3 {
-	// let total_seconds = systemtime::now()
-		// .duration_since(unix_epoch)
-		// .map(|n| n.as_secs() + 9*3600)
-		// .unwrap_or(0);
+	let hour = divide!(total_seconds%86400, 3600) as i32;
 
-	// let time_in_hours = (total_seconds%86400) as f64/3600.0;
-	// let sun_angle_rad = ((time_in_hours - 12.0)*15.0).to_radians();
-
-	// let lat_rad = latitude.to_radians();
-
-	// let sx = cos!(sun_angle_rad);
-	// let sy = sin!(sun_angle_rad);
-	// let lx = cos!(lat_rad);
-	// let ly = sin!(lat_rad);
-
-	// println!(sx, sy, lx, ly);
-
-	// vec3 {
-		// x: sx,
-		// y: multiply!(sy, lx),
-		// z: ly
-	// }
-// }
-
-fn get_gif_buffer(header: &'static[u8], state: State) -> Vec<u8> {
 	let (cos, sin) = &TRIG;
 
 	macro_rules! cos {
 		($t: expr) => {
 			cos[($t & 255) as usize]
-		};
+		}
 	}
 
 	macro_rules! sin {
 		($t: expr) => {
 			sin[($t & 255) as usize]
-		};
+		}
+	}
+
+	// gotta be in angle space
+	let sx = cos!(radian!(hour)/24);
+	let sy = sin!(radian!(hour)/24);
+	let lx = cos!(radian!(latitude));
+	let ly = sin!(radian!(latitude));
+
+	let x = sx;
+	let y = multiply!(sy, lx);
+	let z = ly;
+
+	println!("{}, {}, {}, {}", sx, sy, lx, ly);
+	println!("{}, {}, {}", x, y, z);
+
+	Vec3 {
+		x: x,
+		y: y,
+		z: z
+	}
+}
+
+fn get_gif_buffer(header: &'static[u8], state: State) -> Vec<u8> {
+	let (cos, sin) = &TRIG;
+
+	sun_direction(0);
+
+	macro_rules! cos {
+		($t: expr) => {
+			cos[($t & 255) as usize]
+		}
+	}
+
+	macro_rules! sin {
+		($t: expr) => {
+			sin[($t & 255) as usize]
+		}
 	}
 
 	let mut image = header.to_owned();
@@ -172,7 +203,7 @@ fn get_gif_buffer(header: &'static[u8], state: State) -> Vec<u8> {
 		macro_rules! color {
 			($channel: expr) => {
 				image[HEADER_SIZE + 3*pixel_index + $channel]
-			};
+			}
 		}
 
 		let pixel_position = Vec2 {
@@ -190,12 +221,12 @@ fn get_gif_buffer(header: &'static[u8], state: State) -> Vec<u8> {
 			y: divide!(view_offset.y, VIEW_SIZE_Y),
 			z: view_offset.x*-camera_right_z/VIEW_SIZE_Y + camera_right_x
 		};
-		unit3(&mut pixel_direction);
+		unitize(&mut pixel_direction);
 
 		let light_direction = Vec3 {
 			x: 0,
 			y: 0,
-			z: fixed!(1)
+			z: fix!(1)
 		};
 
 		let pixel_distance =
@@ -220,13 +251,13 @@ fn get_gif_buffer(header: &'static[u8], state: State) -> Vec<u8> {
 			color!(G) = 0;
 			color!(B) = 45;
 
-			let sky = cos!(hit.z >> 9)/2 + cos!(fixed!(200 + sin!(hit.z >> 11)*6) + hit.x >> 9) + 32;
+			let sky = cos!(hit.z >> 9)/2 + cos!(fix!(200 + sin!(hit.z >> 11)*6) + hit.x >> 9) + 32;
 			if sky < 0 {
 				color!(R) = sky as u8;
 				color!(G) = sky as u8;
 				color!(B) = sky as u8;
 			}
-			else if dot3(&pixel_direction, &light_direction) < 128*fixed!(1) {
+			else if get_dot_product(&pixel_direction, &light_direction) < 128*fix!(1) {
 				color!(R) = (128 - multiply!(128, pixel_direction.y)) as u8;
 				color!(G) = (179 - multiply!(179, pixel_direction.y)) as u8;
 				color!(B) = (255 - multiply!(76, pixel_direction.y)) as u8;
@@ -287,13 +318,13 @@ fn get_state_action(mut state_lock: std::sync::MutexGuard<'_, State>, input_acti
 	macro_rules! cos {
 		($t: expr) => {
 			cos[($t & 255) as usize]
-		};
+		}
 	}
 
 	macro_rules! sin {
 		($t: expr) => {
 			sin[($t & 255) as usize]
-		};
+		}
 	}
 
 	match input_action {
@@ -303,12 +334,12 @@ fn get_state_action(mut state_lock: std::sync::MutexGuard<'_, State>, input_acti
 		InputAction::Right => state_lock.camera_heading += PI/2,
 		InputAction::Left => state_lock.camera_heading -= PI/2,
 		InputAction::Forward => {
-			state_lock.camera_position.z += fixed!(1)*cos!(state_lock.camera_heading)/4;
-			state_lock.camera_position.x -= fixed!(1)*sin!(state_lock.camera_heading)/4;
+			state_lock.camera_position.z += fix!(1)*cos!(state_lock.camera_heading)/4;
+			state_lock.camera_position.x -= fix!(1)*sin!(state_lock.camera_heading)/4;
 		},
 		InputAction::Back => {
-			state_lock.camera_position.z -= fixed!(1)*cos!(state_lock.camera_heading)/4;
-			state_lock.camera_position.x += fixed!(1)*sin!(state_lock.camera_heading)/4;
+			state_lock.camera_position.z -= fix!(1)*cos!(state_lock.camera_heading)/4;
+			state_lock.camera_position.x += fix!(1)*sin!(state_lock.camera_heading)/4;
 		}
 	}
 	// otherwise do nothing after the input_action
@@ -322,9 +353,9 @@ async fn handle_request(
 ) -> Result<Response<Full<VecDeque<u8>>>, Infallible> {
 	let input_action = req.uri().path().parse::<InputAction>(); // parse() uses fromstr
 
-	// state_lock is moved into get_state_action here
+	// state_lock is moved into state_action here
 	let state_action = get_state_action(state.lock().unwrap(), input_action.unwrap());
-	// state_lock is dropped at the end of get_state_action, meaning the lock is freed
+	// state_lock is dropped at the end of state_action, meaning the lock is freed
 
 	let response = match state_action {
 		StateAction::Render(state) => {
@@ -387,7 +418,7 @@ async fn main() {
 	let static_header: &'static[u8] = Box::new(header).leak();
 
 	let state = Arc::new(Mutex::new(State {
-		camera_position: Vec3 {x: 0, y: fixed!(30), z: 0},
+		camera_position: Vec3 {x: 0, y: fix!(30), z: 0},
 		camera_heading: 0
 	}));
 
@@ -395,6 +426,7 @@ async fn main() {
 	let listener = tokio::net::TcpListener::bind(address).await.unwrap();
 
 	println!("Listening on http://{}", address);
+
 	loop {
 		let (tcp, _) = listener.accept().await.unwrap();
 		let io = hyper_util::rt::TokioIo::new(tcp);
