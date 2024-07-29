@@ -6,9 +6,12 @@ use std::env;
 use std::net::SocketAddr;
 use std::process::{Command, Stdio};
 use std::io::Write;
+use std::sync::{Arc, Mutex};
 
 const VIEW_SIZE_X: usize = 320;
 const VIEW_SIZE_Y: usize = 200;
+const HEADER_SIZE: usize = 15;
+const BUFFER_SIZE: usize = VIEW_SIZE_X * VIEW_SIZE_Y * 3;
 const R: usize = 0;
 const G: usize = 1;
 const B: usize = 2;
@@ -28,13 +31,12 @@ struct Vec3 {
 
 #[derive(Clone)]
 struct State {
-	image_buffer: Vec<u8>,
 	camera_position: Vec3,
 	camera_heading: i32,
 	light_direction: Vec3,
 }
 
-fn sqrt(n: u32) -> i32 {
+const fn sqrt(n: u32) -> i32 {
 	let (mut f, mut p, mut r) = (0u32, 1u32 << 30, n);
 	while p > r {
 		p >>= 2;
@@ -50,11 +52,11 @@ fn sqrt(n: u32) -> i32 {
 	f as i32
 }
 
-fn dot3(a: &Vec3, b: &Vec3) -> i32 {
+const fn dot3(a: &Vec3, b: &Vec3) -> i32 {
 	a.x * b.x + a.y * b.y + a.z * b.z
 }
 
-fn norm3(v: &Vec3) -> i32 {
+const fn norm3(v: &Vec3) -> i32 {
 	sqrt(dot3(v, v) as u32)
 }
 
@@ -82,16 +84,19 @@ const SIN_COS:([i32;256],[i32;256])=(
 	[0, 3, 6, 9, 12, 16, 19, 22, 25, 28, 31, 34, 37, 40, 43, 46, 49, 51, 54, 57, 60, 63, 65, 68, 71, 73, 76, 78, 81, 83, 85, 88, 90, 92, 94, 96, 98, 100, 102, 104, 106, 107, 109, 111, 112, 113, 115, 116, 117, 118, 120, 121, 122, 122, 123, 124, 125, 125, 126, 126, 126, 127, 127, 127, 127, 127, 127, 127, 126, 126, 126, 125, 125, 124, 123, 122, 122, 121, 120, 118, 117, 116, 115, 113, 112, 111, 109, 107, 106, 104, 102, 100, 98, 96, 94, 92, 90, 88, 85, 83, 81, 78, 76, 73, 71, 68, 65, 63, 60, 57, 54, 51, 49, 46, 43, 40, 37, 34, 31, 28, 25, 22, 19, 16, 12, 9, 6, 3, 0, -3, -6, -9, -12, -16, -19, -22, -25, -28, -31, -34, -37, -40, -43, -46, -49, -51, -54, -57, -60, -63, -65, -68, -71, -73, -76, -78, -81, -83, -85, -88, -90, -92, -94, -96, -98, -100, -102, -104, -106, -107, -109, -111, -112, -113, -115, -116, -117, -118, -120, -121, -122, -122, -123, -124, -125, -125, -126, -126, -126, -127, -127, -127, -127, -127, -127, -127, -126, -126, -126, -125, -125, -124, -123, -122, -122, -121, -120, -118, -117, -116, -115, -113, -112, -111, -109, -107, -106, -104, -102, -100, -98, -96, -94, -92, -90, -88, -85, -83, -81, -78, -76, -73, -71, -68, -65, -63, -60, -57, -54, -51, -49, -46, -43, -40, -37, -34, -31, -28, -25, -22, -19, -16, -12, -9, -6, -3]
 );
 
-fn render_to_gif(mut state:std::sync::MutexGuard<'_,State>)->Vec<u8>{
+/// note that state is immutable here
+fn render_to_gif(header:&'static [u8],state:State)->Vec<u8>{
 	let (cos, sin) = &SIN_COS;
 
 	let camera_heading_cos = cos[state.camera_heading as usize & 255];
 	let camera_heading_sin = sin[state.camera_heading as usize & 255];
 
+	let mut image_buffer = header.to_owned();
+
 	for pixel_index in 0..VIEW_SIZE_X * VIEW_SIZE_Y {
 		macro_rules! color {
 			($channel:expr) => {
-				state.image_buffer[15 + pixel_index * 3 + $channel]
+				image_buffer[HEADER_SIZE + pixel_index * 3 + $channel]
 			};
 		}
 
@@ -164,18 +169,18 @@ fn render_to_gif(mut state:std::sync::MutexGuard<'_,State>)->Vec<u8>{
 		}
 	}
 
-	let image_buffer = state.image_buffer.clone();
-
 	let mut ffmpeg = Command::new("ffmpeg")
-	    .arg("-loglevel")
-	    .arg("0")
-	    .arg("-i")
-	    .arg("-")
-	    .arg("-f")
-	    .arg("gif")
-	    .arg("-vf")
-	    .arg("split[a][b];[a]palettegen[p];[b][p]paletteuse")
-	    .arg("-")
+	    .args([
+			"-loglevel",
+	    	"0",
+	    	"-i",
+	    	"-",
+	    	"-f",
+	    	"gif",
+	    	"-vf",
+	    	"split[a][b];[a]palettegen[p];[b][p]paletteuse",
+	    	"-",
+		])
 	    .stdin(Stdio::piped())
 	    .stdout(Stdio::piped())
 	    .spawn()
@@ -214,66 +219,93 @@ impl std::str::FromStr for Action{
 	}
 }
 
+enum AfterAction{
+	Render(State),
+	DoNothing,
+}
+
+/// returns AfterAction
+fn do_action(mut state_lock: std::sync::MutexGuard<'_,State>,action:Action)->AfterAction{
+	match action {
+		//if the action is to render, make a copy of the current state
+		//so the lock can be dropped while the state is used for the render
+		Action::Render => return AfterAction::Render(state_lock.clone()),
+		Action::Right => state_lock.camera_heading += 32,
+		Action::Left => state_lock.camera_heading -= 32,
+		Action::Forward => {
+			let (cos, sin) = &SIN_COS;
+			state_lock.camera_position.x -= 4000 * sin[state_lock.camera_heading as usize & 255];
+			state_lock.camera_position.z += 4000 * cos[state_lock.camera_heading as usize & 255];
+		},
+		Action::Back => {
+			let (cos, sin) = &SIN_COS;
+			state_lock.camera_position.x += 4000 * sin[state_lock.camera_heading as usize & 255];
+			state_lock.camera_position.z -= 4000 * cos[state_lock.camera_heading as usize & 255];
+		},
+	}
+	//otherwise do nothing after the action
+	AfterAction::DoNothing
+}
+
 async fn handle_request(
+	header: &'static [u8],
 	req: hyper::Request<hyper::body::Incoming>,
-	mut state: std::sync::MutexGuard<'_,State>,
+	state: Arc<Mutex<State>>,
 ) -> Result<Response<Full<VecDeque<u8>>>, Infallible> {
 	let action = req.uri().path().parse::<Action>();//parse() uses FromStr
 
 	println!("{action:?}");
 
-	match action {
-		Ok(Action::Render) => {
-			let gif_buffer = render_to_gif(state);
+	//state_lock is moved into do_action here
+	let after_action=do_action(state.lock().unwrap(),action.unwrap());
+	//state_lock is DROPPED at the end of do_action, meaning the lock is freed
 
-			let response = Response::builder()
+	let response=match after_action{
+		AfterAction::Render(state)=>{
+			//render a cloned state while being free to serve more requests
+			let gif_buffer = render_to_gif(header,state);
+
+			Response::builder()
 			    .header(header::CACHE_CONTROL, "max-age=0")
 			    .header(header::CONTENT_TYPE, "image/gif")
 			    .body(Full::new(VecDeque::from(gif_buffer)))
-			    .unwrap();
-
-			return Ok(response);
-		}
-		Ok(Action::Right) => state.camera_heading += 32,
-		Ok(Action::Left) => state.camera_heading -= 32,
-		Ok(Action::Forward) => {
-			let (cos, sin) = &SIN_COS;
-			state.camera_position.x -= 4000 * sin[state.camera_heading as usize & 255];
-			state.camera_position.z += 4000 * cos[state.camera_heading as usize & 255];
-		}
-		Ok(Action::Back) => state.camera_heading += 64,
-		_ => (),
-	}
-
-	let response = Response::builder()
-		.status(302)
-		.header(header::CACHE_CONTROL, "max-age=0")
-		.header(header::LOCATION, "https://github.com/blocksrey")
-		.body(Full::default())
-		.unwrap();
+			    .unwrap()
+		},
+		AfterAction::DoNothing=>{
+			//don't render
+			Response::builder()
+				.status(302)
+				.header(header::CACHE_CONTROL, "max-age=0")
+				.header(header::LOCATION, "https://github.com/blocksrey")
+				.body(Full::default())
+				.unwrap()
+		},
+	};
 
 	Ok(response)
 }
 
 #[tokio::main]
 async fn main() {
-	let port = env::var("PORT").unwrap_or_else(|_| "7890".to_string());
-	let address = SocketAddr::from(([0, 0, 0, 0], port.parse().expect("Invalid port number")));
+	let port = env::var("PORT").map_or(7890,
+		|port_env|port_env.parse().expect("Invalid port number")
+	);
+	let address = SocketAddr::from(([0, 0, 0, 0], port));
 
-	let header = format!("P6\n{} {}\n255\n", VIEW_SIZE_X, VIEW_SIZE_Y).into_bytes();
-	let buffer_size = header.len() + VIEW_SIZE_X * VIEW_SIZE_Y * 3;
+	let mut header=format!("P6\n{} {}\n255\n", VIEW_SIZE_X, VIEW_SIZE_Y).into_bytes();
+	assert_eq!(header.len(),HEADER_SIZE,"Update HEADER_SIZE");
+	header.resize(HEADER_SIZE+BUFFER_SIZE,0);
 
-	let state = std::sync::Mutex::new(State {
-		image_buffer: {
-			let mut buffer = vec![0; buffer_size];
-			buffer[..header.len()].copy_from_slice(&header);
-			buffer
-		},
+	//use a memory leak to make a static reference to a byte slice
+	//it only runs once so does it really count as a memory leak?
+	//coerce &'static mut [u8] into &'static [u8] so the reference can be copied
+	let static_header:&'static [u8] = Box::new(header).leak();
+
+	let state = Arc::new(Mutex::new(State {
 		camera_position: Vec3 { x: 0, y: 4000, z: 0 },
 		camera_heading: 0,
 		light_direction: Vec3 { x: 0, y: 0, z: 127 },
-	});
-
+	}));
 
 	//https://github.com/hyperium/hyper/blob/master/examples/hello.rs
 	let listener=tokio::net::TcpListener::bind(address).await.unwrap();
@@ -282,13 +314,17 @@ async fn main() {
 	loop{
 		let (tcp,_)=listener.accept().await.unwrap();
 		let io=hyper_util::rt::TokioIo::new(tcp);
-		if let Err(err)=hyper::server::conn::http1::Builder::new()
-		.timer(hyper_util::rt::TokioTimer::new())
-		.serve_connection(io,hyper::service::service_fn(|body|async{
-			handle_request(body,state.lock().unwrap()).await
-		}))
-		.await{
-			println!("Error serving connection: {:?}",err);
-		}
+		let state=state.clone();
+		tokio::spawn(async move{
+			if let Err(err)=hyper::server::conn::http1::Builder::new()
+			.timer(hyper_util::rt::TokioTimer::new())
+			.serve_connection(io,hyper::service::service_fn(move|body|
+				//I couldn't tell you why it has to be cloned twice
+				handle_request(static_header,body,state.clone())
+			))
+			.await{
+				println!("Error serving connection: {:?}",err);
+			}
+		});
 	}
 }
