@@ -428,9 +428,9 @@ struct Vec3 {
 
 #[tokio::main]
 async fn main() -> Anyhow<()> {
-	let port = env::var("PORT").map_or(7890,
-		|port| port.parse().unwrap()
-	);
+	let port = env::var("PORT").map_or(Ok(7890),
+		|port| port.parse()
+	)?;
 	let address = SocketAddr::from(([0, 0, 0, 0], port));
 
 	let mut header = format!("P6\n{} {}\n255\n", VIEW_SIZE_X, VIEW_SIZE_Y).into_bytes();
