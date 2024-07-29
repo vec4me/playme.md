@@ -298,7 +298,8 @@ async fn main() {
 
 	//use a memory leak to make a static reference to a byte slice
 	//it only runs once so does it really count as a memory leak?
-	let static_header = Box::new(header).leak();
+	//coerce &'static mut [u8] into &'static [u8] so the reference can be copied
+	let static_header:&'static [u8] = Box::new(header).leak();
 
 	let state = Arc::new(Mutex::new(State {
 		camera_position: Vec3 { x: 0, y: 4000, z: 0 },
@@ -308,9 +309,6 @@ async fn main() {
 
 	//https://github.com/hyperium/hyper/blob/master/examples/hello.rs
 	let listener=tokio::net::TcpListener::bind(address).await.unwrap();
-
-	//coerce &'static mut [u8] into &'static [u8] so the reference can be copied
-	let static_header:&'static [u8]=static_header;
 
 	println!("Listening on http://{}",address);
 	loop{
