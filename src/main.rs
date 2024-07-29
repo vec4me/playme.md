@@ -380,8 +380,9 @@ async fn handle_request(
 ) -> Anyhow<Response<Full<VecDeque<u8>>>> {
 	let input_action = request.uri().path().parse::<InputAction>()?; // parse() uses fromstr
 
+	let state_lock = state.lock().map_err(|_|anyhow::anyhow!("Lock failed"))?;
 	// state_lock is moved into state_action here
-	let state_action = get_state_action(state.lock().map_err(|_|anyhow::anyhow!("Lock failed"))?, input_action);
+	let state_action = get_state_action(state_lock, input_action);
 	// state_lock is dropped at the end of state_action, meaning the lock is freed
 
 	let response = match state_action {
