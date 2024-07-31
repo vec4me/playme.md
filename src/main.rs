@@ -9,6 +9,143 @@ use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+const fn get_factorial(n: i32) -> i32 {
+	let mut result = 1;
+	let mut i = 1;
+	while i <= n {
+		result *= i;
+		i += 1;
+	}
+	result
+}
+
+// const fn get_taylor_cos_fast(t: i64) -> i32 {
+// 	let mut sum = TRIG_SCALE;
+// 	let tt = t*t/TRIG_SCALE;
+// 	// Only the first term of the Taylor series for cos(t)
+// 	sum -= tt >> 1; // Since get_factorial(2) is 2
+// 	sum as i32
+// }
+
+// const fn get_fixed_point_pow(x: i64, exp: u64) -> i64 {
+// 	match exp {
+// 		0 => TRIG_SCALE, // Any number to the power of 0 is 1, scaled
+// 		1 => x,
+// 		2 => x*x/TRIG_SCALE,
+// 		3 => x*x*x/(TRIG_SCALE*TRIG_SCALE),
+// 		4 => x*x*x*x/(TRIG_SCALE*TRIG_SCALE*TRIG_SCALE),
+// 		5 => x*x*x*x*x/(TRIG_SCALE*TRIG_SCALE*TRIG_SCALE*TRIG_SCALE),
+// 		// Add more cases if needed, or use a formulaic approach
+// 		_ => TRIG_SCALE // Default case if exp is too large
+// 	}
+// }
+
+const fn get_fixed_point_pow(b: i64, n: u64) -> i64 {
+	let mut result = TRIG_SCALE;
+	let mut i = 0;
+	while i < n {
+		result = result*b/TRIG_SCALE;
+		i += 1;
+	}
+	result
+}
+
+const fn get_taylor_cos(x: i64) -> i32 {
+	let mut sum = 0;
+	let mut n = 0;
+	while n < TRIG_TERMS {
+		let sign = if n%2 == 0 { 1 } else { -1 };
+		let p = sign*get_fixed_point_pow(x, (2*n) as u64);
+		let q = get_factorial((2*n) as i32) as i64;
+		let term = p/q;
+		sum += term;
+		n += 1;
+	}
+	sum as i32
+}
+
+// I'm really curious if this works
+// const fn compute_value(index: usize) -> (i32, i32) {
+// 	let t = index%(TAU >> 2);
+// 	let x = get_taylor_cos(247*t as i64)/78;
+
+// 	let cos_val = match index {
+// 		0 | 2 | 4 | 6 => x,
+// 		1 | 3 | 5 | 7 => -x,
+// 		_ => 0,
+// 	};
+
+// 	let sin_val = match index {
+// 		1 | 5 => x,
+// 		3 | 7 => -x,
+// 		_ => 0,
+// 	};
+
+// 	(cos_val, sin_val)
+// }
+
+// const fn fill_array<const N: usize>(index: usize, mut cos: [i32; N], mut sin: [i32; N]) -> ([i32; N], [i32; N]) {
+// 	if index >= N {
+// 		return (cos, sin);
+// 	}
+
+// 	let (cos_val, sin_val) = compute_value(index);
+// 	cos[index] = cos_val;
+// 	sin[index] = sin_val;
+
+// 	fill_array(index + 1, cos, sin)
+// }
+
+// const fn get_trig_tables() -> ([i32; TAU], [i32; TAU]) {
+// 	fill_array(0, [0; TAU], [0; TAU])
+// }
+
+const fn get_trig_tables() -> ([i32; TAU], [i32; TAU]) {
+	let mut cos = [0; TAU];
+	let mut sin = [0; TAU];
+
+	let mut t = 0;
+	while 4*t < TAU {
+		// Honestly I just guessed these constants...
+		let x = get_taylor_cos(247*t as i64)/78;
+
+		// https://www.desmos.com/calculator/zltsqq6kvl
+		cos[0*(TAU >> 2) + t + 0] = x;
+		cos[2*(TAU >> 2) + t + 0] = -x;
+		cos[2*(TAU >> 2) - t + 0] = -x;
+		cos[4*(TAU >> 2) - t - 1] = x;
+
+		sin[1*(TAU >> 2) - t + 0] = x;
+		sin[1*(TAU >> 2) + t + 0] = x;
+		sin[3*(TAU >> 2) - t + 0] = -x;
+		sin[3*(TAU >> 2) + t + 0] = -x;
+
+		t += 1
+	}
+
+	(cos, sin)
+}
+
+const TRIG_TABLES: ([i32; TAU], [i32; TAU]) = get_trig_tables();
+
+macro_rules! get_trig {
+	() => {
+		let (cos, sin) = &TRIG_TABLES;
+
+		macro_rules! cos {
+			($t: expr) => {
+				cos[($t & 255) as usize]
+			}
+		}
+
+		macro_rules! sin {
+			($t: expr) => {
+				sin[($t & 255) as usize]
+			}
+		}
+	}
+}
+
 macro_rules! fix {
 	($v: expr) => {
 		$v << DIGITS
@@ -35,13 +172,19 @@ macro_rules! multiply {
 
 macro_rules! radian {
 	($v: expr) => {
-		multiply!(TAU as i32, $v)/2
+		multiply!(TAU as i32, $v) >> 1
 	}
 }
 
 macro_rules! divide {
 	($a: expr, $b: expr) => {
 		($a << DIGITS)/$b
+	}
+}
+
+macro_rules! clamp {
+	($value: expr, $min: expr, $max: expr) => {
+		std::cmp::max($min, std::cmp::min($value, $max))
 	}
 }
 
@@ -105,7 +248,6 @@ fn unitize(v: &mut Vec3) {
 	v.z = divide!(v.z, n);
 }
 
-#[derive(Debug)]
 enum InputAction {
 	Render,
 	Right,
@@ -142,89 +284,7 @@ enum StateAction {
 	DoNothing
 }
 
-const fn get_factorial(n: i32) -> i32 {
-	let mut result = 1;
-	let mut i = 1;
-	while i <= n {
-		result *= i;
-		i += 1;
-	}
-	result
-}
-
-// const fn get_taylor_cos_fast(t: i64) -> i32 {
-// 	let mut sum = TRIG_SCALE;
-// 	let tt = t*t/TRIG_SCALE;
-// 	// Only the first term of the Taylor series for cos(t)
-// 	sum -= tt/2; // Since get_factorial(2) is 2
-// 	sum as i32
-// }
-
-const fn get_fixed_point_pow(x: i64, exp: u64) -> i64 {
-	let mut result = TRIG_SCALE;
-	let mut i = 0;
-	while i < exp {
-		result = result*x/TRIG_SCALE;
-		i += 1;
-	}
-	result
-}
-
-const fn get_taylor_cos(x: i64) -> i32 {
-	let mut sum = 0;
-	let mut n = 0;
-	while n < TRIG_TERMS {
-		let sign = if n % 2 == 0 { 1 } else { -1 };
-		let numerator = sign*get_fixed_point_pow(x, (2*n) as u64);
-		let denominator = get_factorial((2*n) as i32) as i64;
-		let term = numerator/denominator;
-		sum += term;
-		n += 1;
-	}
-	sum as i32
-}
-
-const fn get_trig_tables() -> ([i32; TAU], [i32; TAU]) {
-	let mut cos = [0; TAU];
-	let mut sin = [0; TAU];
-
-	macro_rules! cos {
-		($t: expr) => {
-			cos[($t & 255) as usize]
-		}
-	}
-
-	macro_rules! sin {
-		($t: expr) => {
-			sin[($t & 255) as usize]
-		}
-	}
-
-	let mut t = 0;
-	while 4*t < TAU {
-		// Honestly I just guessed these constants...
-		let x = get_taylor_cos(247*t as i64)/78;
-
-		// https://www.desmos.com/calculator/zltsqq6kvl
-		cos!(0*TAU/4 + t) = x;
-		cos!(2*TAU/4 + t) = -x;
-		cos!(2*TAU/4 - t) = -x;
-		cos!(4*TAU/4 - t) = x;
-
-		sin!(1*TAU/4 - t) = x;
-		sin!(1*TAU/4 + t) = x;
-		sin!(3*TAU/4 - t) = -x;
-		sin!(3*TAU/4 + t) = -x;
-
-		t += 1
-	}
-
-	(cos, sin)
-}
-
-const TRIG_TABLES: ([i32; TAU], [i32; TAU]) = get_trig_tables();
-
-fn sun_direction(latitude: i32) -> Vec3 {
+fn get_sun_direction(latitude: i32) -> Vec3 {
 	let time = SystemTime::now()
 		.duration_since(UNIX_EPOCH)
 		.map(|n| n.as_secs() + 9*3600)
@@ -232,19 +292,7 @@ fn sun_direction(latitude: i32) -> Vec3 {
 
 	let time = divide!(time%86400, 3600) as i32;
 
-	let (cos, sin) = &TRIG_TABLES;
-
-	macro_rules! cos {
-		($t: expr) => {
-			cos[($t & 255) as usize]
-		}
-	}
-
-	macro_rules! sin {
-		($t: expr) => {
-			sin[($t & 255) as usize]
-		}
-	}
+	get_trig!();
 
 	// gotta be in angle space
 	let sx = cos!(radian!(time)/24);
@@ -256,10 +304,19 @@ fn sun_direction(latitude: i32) -> Vec3 {
 	let y = multiply!(sy, lx);
 	let z = ly;
 
-	println!("{}, {}, {}, {}", sx, sy, lx, ly);
-	println!("{}, {}, {}", x, y, z);
+	// println!("{}, {}, {}, {}", sx, sy, lx, ly);
+	// println!("{}, {}, {}", x, y, z);
 
 	Vec3 {
+		// x: 0,
+		// y: 0,
+		// z: 100
+		// x: 0,
+		// y: 50,
+		// z: 0
+		// x: 0,
+		// y: 128,
+		// z: 0
 		x: x,
 		y: y,
 		z: z
@@ -267,23 +324,14 @@ fn sun_direction(latitude: i32) -> Vec3 {
 }
 
 fn get_gif_buffer(header: &[u8], state: State) -> Anyhow<Vec<u8>> {
-	let (cos, sin) = &TRIG_TABLES;
+	let mut light_direction = get_sun_direction(0);
+	light_direction.swap_xz();
 
-	sun_direction(0);
-
-	macro_rules! cos {
-		($t: expr) => {
-			cos[($t & 255) as usize]
-		}
-	}
-
-	macro_rules! sin {
-		($t: expr) => {
-			sin[($t & 255) as usize]
-		}
-	}
+	// println!("{} {} {}", light_direction.x, light_direction.y, light_direction.z);
 
 	let mut image = header.to_owned();
+
+	get_trig!();
 
 	let camera_right_z = -sin!(state.camera_heading);
 	let camera_right_x = cos!(state.camera_heading);
@@ -312,12 +360,6 @@ fn get_gif_buffer(header: &[u8], state: State) -> Anyhow<Vec<u8>> {
 		};
 		unitize(&mut pixel_direction);
 
-		let light_direction = Vec3 {
-			x: 0,
-			y: 0,
-			z: fix!(1)
-		};
-
 		let pixel_distance =
 		if pixel_direction.y > 0 {
 			divide!(CLOUD_HEIGHT, pixel_direction.y)
@@ -340,7 +382,8 @@ fn get_gif_buffer(header: &[u8], state: State) -> Anyhow<Vec<u8>> {
 			color!(G) = 0;
 			color!(B) = 45;
 
-			let sky = cos!(hit.z >> 9)/2 + cos!(fix!(200 + 6*sin!(hit.z >> 11)) + hit.x >> 9) + 32;
+			let sky = (cos!(hit.z >> 9) >> 1) + cos!(fix!(200 + 6*sin!(hit.z >> 11)) + hit.x >> 9) + 32;
+
 			if sky < 0 {
 				color!(R) = sky as u8;
 				color!(G) = sky as u8;
@@ -357,15 +400,15 @@ fn get_gif_buffer(header: &[u8], state: State) -> Anyhow<Vec<u8>> {
 			color!(G) = 40;
 			color!(B) = 0;
 
-			if !(((hit.x >> 13)%7)*((hit.z >> 13)%9) != 0) {
+			if ((hit.x >> 13)%7)*((hit.z >> 13)%9) == 0 {
 				color!(R) = 100;
-				// color!(G) = 100 + 4*(hit.x/20&31) as u8;
 				color!(G) = 100;
+				// color!(G) = 100 + 4*(hit.x/20&31) as u8;
 				color!(B) = 110;
 			}
 			else {
 				color!(R) = 60;
-				color!(G) = (sin!(hit.x/20)/2 + 55) as u8;
+				color!(G) = ((sin!(hit.x/20) >> 1) + 55) as u8;
 				color!(B) = 0;
 
 				// checking if it's negative(overflow)
@@ -375,6 +418,12 @@ fn get_gif_buffer(header: &[u8], state: State) -> Anyhow<Vec<u8>> {
 				}
 			}
 		}
+
+		let shine = clamp!(10*(2 + light_direction.y), 0, 255);
+
+		color!(R) = ((color!(R) as i32*shine) >> 8) as u8;
+		color!(G) = ((color!(G) as i32*shine) >> 8) as u8;
+		color!(B) = ((color!(B) as i32*shine) >> 8) as u8;
 	}
 
 	let mut ffmpeg = Command::new("ffmpeg")
@@ -401,37 +450,25 @@ fn get_gif_buffer(header: &[u8], state: State) -> Anyhow<Vec<u8>> {
 }
 
 fn get_state_action(mut state_lock: std::sync::MutexGuard<'_, State>, input_action: InputAction) -> StateAction {
-	let (cos, sin) = &TRIG_TABLES;
-
-	macro_rules! cos {
-		($t: expr) => {
-			cos[($t & 255) as usize]
-		}
-	}
-
-	macro_rules! sin {
-		($t: expr) => {
-			sin[($t & 255) as usize]
-		}
-	}
-
 	// for t in (0..=TAU).step_by(1) {
 	// 	println!("{}", sin!(t as i64));
 	// }
+
+	get_trig!();
 
 	match input_action {
 		// if the input_action is to render, make a copy of the current state
 		// so the lock can be dropped while the state is used for the render
 		InputAction::Render => return StateAction::Render(state_lock.clone()),
-		InputAction::Right => state_lock.camera_heading += TAU as i32/8,
-		InputAction::Left => state_lock.camera_heading -= TAU as i32/8,
+		InputAction::Right => state_lock.camera_heading += TAU as i32 >> 3,
+		InputAction::Left => state_lock.camera_heading -= TAU as i32 >> 3,
 		InputAction::Forward => {
-			state_lock.camera_position.z += fix!(1)*cos!(state_lock.camera_heading)/4;
-			state_lock.camera_position.x -= fix!(1)*sin!(state_lock.camera_heading)/4;
+			state_lock.camera_position.z += fix!(1)*cos!(state_lock.camera_heading) >> 2;
+			state_lock.camera_position.x -= fix!(1)*sin!(state_lock.camera_heading) >> 2;
 		},
 		InputAction::Back => {
-			state_lock.camera_position.z -= fix!(1)*cos!(state_lock.camera_heading)/4;
-			state_lock.camera_position.x += fix!(1)*sin!(state_lock.camera_heading)/4;
+			state_lock.camera_position.z -= fix!(1)*cos!(state_lock.camera_heading) >> 2;
+			state_lock.camera_position.x += fix!(1)*sin!(state_lock.camera_heading) >> 2;
 		}
 	}
 	// otherwise do nothing after the input_action
@@ -479,17 +516,23 @@ struct State {
 	camera_heading: i32
 }
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 struct Vec2 {
 	x: i32,
 	y: i32
 }
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 struct Vec3 {
 	x: i32,
 	y: i32,
 	z: i32
+}
+
+impl Vec3 {
+	fn swap_xz(&mut self) {
+		std::mem::swap(&mut self.x, &mut self.z);
+	}
 }
 
 #[tokio::main]
