@@ -11,13 +11,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 macro_rules! fix {
 	($v: expr) => {
-		$v << SHIFT
+		$v << DIGITS
 	}
 }
 
 macro_rules! defix {
 	($v: expr) => {
-		$v >> SHIFT
+		$v >> DIGITS
 	}
 }
 
@@ -29,32 +29,37 @@ macro_rules! float {
 
 macro_rules! multiply {
 	($a: expr, $b: expr) => {
-		($a*$b) >> SHIFT
+		($a*$b) >> DIGITS
 	}
 }
 
 macro_rules! radian {
 	($v: expr) => {
-		multiply!(TAU, $v)/2
+		multiply!(TAU as i32, $v)/2
 	}
 }
 
 macro_rules! divide {
 	($a: expr, $b: expr) => {
-		($a << SHIFT)/$b
+		($a << DIGITS)/$b
 	}
 }
 
-const TAU: i32 = 256;
-const SHIFT: i32 = 7;
-const CLOUD_HEIGHT: i32 = fix!(200);
-const VIEW_SIZE_X: i32 = 320;
-const VIEW_SIZE_Y: i32 = 200;
 const R: usize = 0;
 const G: usize = 1;
 const B: usize = 2;
+
+const BUFFER_SIZE: usize = (3*VIEW_SIZE_X*VIEW_SIZE_Y) as usize;
+
+const CLOUD_HEIGHT: i32 = fix!(200);
+const DIGITS: i32 = 7;
 const HEADER_SIZE: usize = 15;
-const BUFFER_SIZE: usize = (VIEW_SIZE_X*VIEW_SIZE_Y*3) as usize;
+const TAU: usize = 256;
+const TRIG_SCALE: i64 = 10_000;
+const TRIG_TERMS: usize = 4;
+
+const VIEW_SIZE_X: i32 = 320;
+const VIEW_SIZE_Y: i32 = 200;
 
 fn get_square_root(n: i32) -> i32 {
 	let (mut f, mut p, mut r) = (0, 1 << 30, n);
@@ -82,15 +87,15 @@ fn get_length(v: &Vec3) -> i32 {
 }
 
 // fn multiply(a: i32, b: i32) -> i32 {
-	// (a*b) >> SHIFT
+	// (a*b) >> DIGITS
 // }
 
-// fn divide(a: i32, b: i32) -> i32 {
-	// (a << SHIFT)/b
+// fn divide(a: i32, b: i32) -> i32 {DIGITS
+	// (a << DIGITS)/b
 // }
 
 // fn fix(v: i32) -> i32 {
-	// v << SHIFT
+	// v << DIGITS
 // }
 
 fn unitize(v: &mut Vec3) {
@@ -116,6 +121,7 @@ impl std::fmt::Display for InvalidInputAction{
 		write!(f,"{self:?}")
 	}
 }
+
 impl std::error::Error for InvalidInputAction{}
 impl std::str::FromStr for InputAction {
 	type Err = InvalidInputAction;
@@ -136,42 +142,97 @@ enum StateAction {
 	DoNothing
 }
 
-const TRIG: ([i32; TAU as usize], [i32; TAU as usize]) = {
-	let sin: [i32; TAU as usize] = [
-		0, 3, 6, 9, 12, 16, 19, 22, 25, 28, 31, 34, 37, 40, 43, 46, 49, 51, 54, 57, 60, 63, 65, 68, 71, 73, 76, 78, 81,
-		83, 85, 88, 90, 92, 94, 96, 98, 100, 102, 104, 106, 107, 109, 111, 112, 113, 115, 116, 117, 118, 120, 121, 122,
-		122, 123, 124, 125, 125, 126, 126, 126, 127, 127, 127, 127, 127, 127, 127, 126, 126, 126, 125, 125, 124, 123,
-		122, 122, 121, 120, 118, 117, 116, 115, 113, 112, 111, 109, 107, 106, 104, 102, 100, 98, 96, 94, 92, 90, 88,
-		85, 83, 81, 78, 76, 73, 71, 68, 65, 63, 60, 57, 54, 51, 49, 46, 43, 40, 37, 34, 31, 28, 25, 22, 19, 16, 12, 9,
-		6, 3, 0, -3, -6, -9, -12, -16, -19, -22, -25, -28, -31, -34, -37, -40, -43, -46, -49, -51, -54, -57, -60, -63,
-		-65, -68, -71, -73, -76, -78, -81, -83, -85, -88, -90, -92, -94, -96, -98, -100, -102, -104, -106, -107, -109,
-		-111, -112, -113, -115, -116, -117, -118, -120, -121, -122, -122, -123, -124, -125, -125, -126, -126, -126,
-		-127, -127, -127, -127, -127, -127, -127, -126, -126, -126, -125, -125, -124, -123, -122, -122, -121, -120,
-		-118, -117, -116, -115, -113, -112, -111, -109, -107, -106, -104, -102, -100, -98, -96, -94, -92, -90, -88,
-		-85, -83, -81, -78, -76, -73, -71, -68, -65, -63, -60, -57, -54, -51, -49, -46, -43, -40, -37, -34, -31, -28,
-		-25, -22, -19, -16, -12, -9, -6, -3,
-	];
-
-	let mut cos = [0; TAU as usize];
-	let mut i = 0;
-	// for loops are not allowed at compile time
-	while i < TAU as usize {
-		cos[i] = sin[(i + (TAU/4) as usize) & 255];
+const fn get_factorial(n: i32) -> i32 {
+	let mut result = 1;
+	let mut i = 1;
+	while i <= n {
+		result *= i;
 		i += 1;
+	}
+	result
+}
+
+// const fn get_taylor_cos_fast(t: i64) -> i32 {
+// 	let mut sum = TRIG_SCALE;
+// 	let tt = t*t/TRIG_SCALE;
+// 	// Only the first term of the Taylor series for cos(t)
+// 	sum -= tt/2; // Since get_factorial(2) is 2
+// 	sum as i32
+// }
+
+const fn get_fixed_point_pow(x: i64, exp: u64) -> i64 {
+	let mut result = TRIG_SCALE;
+	let mut i = 0;
+	while i < exp {
+		result = result*x/TRIG_SCALE;
+		i += 1;
+	}
+	result
+}
+
+const fn get_taylor_cos(x: i64) -> i32 {
+	let mut sum = 0;
+	let mut n = 0;
+	while n < TRIG_TERMS {
+		let sign = if n % 2 == 0 { 1 } else { -1 };
+		let numerator = sign*get_fixed_point_pow(x, (2*n) as u64);
+		let denominator = get_factorial((2*n) as i32) as i64;
+		let term = numerator/denominator;
+		sum += term;
+		n += 1;
+	}
+	sum as i32
+}
+
+const fn get_trig_tables() -> ([i32; TAU], [i32; TAU]) {
+	let mut cos = [0; TAU];
+	let mut sin = [0; TAU];
+
+	macro_rules! cos {
+		($t: expr) => {
+			cos[($t & 255) as usize]
+		}
+	}
+
+	macro_rules! sin {
+		($t: expr) => {
+			sin[($t & 255) as usize]
+		}
+	}
+
+	let mut t = 0;
+	while 4*t < TAU {
+		// Honestly I just guessed these constants...
+		let x = get_taylor_cos(247*t as i64)/78;
+
+		// https://www.desmos.com/calculator/zltsqq6kvl
+		cos!(0*TAU/4 + t) = x;
+		cos!(2*TAU/4 + t) = -x;
+		cos!(2*TAU/4 - t) = -x;
+		cos!(4*TAU/4 - t) = x;
+
+		sin!(1*TAU/4 - t) = x;
+		sin!(1*TAU/4 + t) = x;
+		sin!(3*TAU/4 - t) = -x;
+		sin!(3*TAU/4 + t) = -x;
+
+		t += 1
 	}
 
 	(cos, sin)
-};
+}
+
+const TRIG_TABLES: ([i32; TAU], [i32; TAU]) = get_trig_tables();
 
 fn sun_direction(latitude: i32) -> Vec3 {
-	let total_seconds = SystemTime::now()
+	let time = SystemTime::now()
 		.duration_since(UNIX_EPOCH)
 		.map(|n| n.as_secs() + 9*3600)
 		.unwrap_or(0);
 
-	let hour = divide!(total_seconds%86400, 3600) as i32;
+	let time = divide!(time%86400, 3600) as i32;
 
-	let (cos, sin) = &TRIG;
+	let (cos, sin) = &TRIG_TABLES;
 
 	macro_rules! cos {
 		($t: expr) => {
@@ -186,8 +247,8 @@ fn sun_direction(latitude: i32) -> Vec3 {
 	}
 
 	// gotta be in angle space
-	let sx = cos!(radian!(hour)/24);
-	let sy = sin!(radian!(hour)/24);
+	let sx = cos!(radian!(time)/24);
+	let sy = sin!(radian!(time)/24);
 	let lx = cos!(radian!(latitude));
 	let ly = sin!(radian!(latitude));
 
@@ -206,7 +267,7 @@ fn sun_direction(latitude: i32) -> Vec3 {
 }
 
 fn get_gif_buffer(header: &[u8], state: State) -> Anyhow<Vec<u8>> {
-	let (cos, sin) = &TRIG;
+	let (cos, sin) = &TRIG_TABLES;
 
 	sun_direction(0);
 
@@ -245,9 +306,9 @@ fn get_gif_buffer(header: &[u8], state: State) -> Anyhow<Vec<u8>> {
 		};
 
 		let mut pixel_direction = Vec3 {
-			x: view_offset.x*camera_right_x/VIEW_SIZE_Y + camera_right_z,
+			x: camera_right_x*view_offset.x/VIEW_SIZE_Y + camera_right_z,
 			y: divide!(view_offset.y, VIEW_SIZE_Y),
-			z: view_offset.x*-camera_right_z/VIEW_SIZE_Y + camera_right_x
+			z: -camera_right_z*view_offset.x/VIEW_SIZE_Y + camera_right_x
 		};
 		unitize(&mut pixel_direction);
 
@@ -279,7 +340,7 @@ fn get_gif_buffer(header: &[u8], state: State) -> Anyhow<Vec<u8>> {
 			color!(G) = 0;
 			color!(B) = 45;
 
-			let sky = cos!(hit.z >> 9)/2 + cos!(fix!(200 + sin!(hit.z >> 11)*6) + hit.x >> 9) + 32;
+			let sky = cos!(hit.z >> 9)/2 + cos!(fix!(200 + 6*sin!(hit.z >> 11)) + hit.x >> 9) + 32;
 			if sky < 0 {
 				color!(R) = sky as u8;
 				color!(G) = sky as u8;
@@ -340,7 +401,7 @@ fn get_gif_buffer(header: &[u8], state: State) -> Anyhow<Vec<u8>> {
 }
 
 fn get_state_action(mut state_lock: std::sync::MutexGuard<'_, State>, input_action: InputAction) -> StateAction {
-	let (cos, sin) = &TRIG;
+	let (cos, sin) = &TRIG_TABLES;
 
 	macro_rules! cos {
 		($t: expr) => {
@@ -354,12 +415,16 @@ fn get_state_action(mut state_lock: std::sync::MutexGuard<'_, State>, input_acti
 		}
 	}
 
+	// for t in (0..=TAU).step_by(1) {
+	// 	println!("{}", sin!(t as i64));
+	// }
+
 	match input_action {
 		// if the input_action is to render, make a copy of the current state
 		// so the lock can be dropped while the state is used for the render
 		InputAction::Render => return StateAction::Render(state_lock.clone()),
-		InputAction::Right => state_lock.camera_heading += TAU/8,
-		InputAction::Left => state_lock.camera_heading -= TAU/8,
+		InputAction::Right => state_lock.camera_heading += TAU as i32/8,
+		InputAction::Left => state_lock.camera_heading -= TAU as i32/8,
 		InputAction::Forward => {
 			state_lock.camera_position.z += fix!(1)*cos!(state_lock.camera_heading)/4;
 			state_lock.camera_position.x -= fix!(1)*sin!(state_lock.camera_heading)/4;
@@ -378,7 +443,7 @@ async fn handle_request(
 	request: hyper::Request<hyper::body::Incoming>,
 	state: Arc<Mutex<State>>,
 ) -> Anyhow<Response<Full<VecDeque<u8>>>> {
-	let input_action = request.uri().path().parse::<InputAction>()?; // parse() uses fromstr
+	let input_action = request.uri().path().parse::<InputAction>()?;
 
 	let state_lock = state.lock().map_err(|_|anyhow::anyhow!("Lock failed"))?;
 	// state_lock is moved into state_action here
