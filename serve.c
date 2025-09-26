@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <netinet/in.h>
 
@@ -17,13 +18,22 @@ static int sin[] = {0, 3, 6, 9, 12, 16, 19, 22, 25, 28, 31, 34, 37, 40, 43, 46, 
  -85, -83, -81, -78, -76, -73, -71, -68, -65, -63, -60, -57, -54, -51, -49, -46, -43, -40, -37, -34, -31, -28, 
  -25, -22, -19, -16, -12, -9, -6, -3};
 
-int main() {
+int main(int argc, char *argv[]) {
+	if (argc < 2) {
+		fprintf(stderr, "Usage: %s <port>\n", argv[0]);
+		return 1;
+	}
+
+	int port = atoi(argv[1]);
+
+	printf("%i\n", port);
+
 	int cos[sizeof sin];
 	for (int i = sizeof sin; i--;) cos[i] = sin[(i + 65)&255];
 
 	struct sockaddr_in info_u;
 	info_u.sin_family = AF_INET;
-	info_u.sin_port = htons(7890);
+	info_u.sin_port = htons(port);
 	info_u.sin_addr.s_addr = INADDR_ANY;
 
 	int sock_u = socket(AF_INET, SOCK_STREAM, 0);
@@ -63,21 +73,15 @@ int main() {
 			send(sock_t, buff_o, 1 + (size_t)(term - buff_o), 0);
 		}
 		else {
-			if (type == 'r') {
-				arg[ry] -= 32;
-			}
-			if (type == 'l') {
-				arg[ry] += 32;
-			}
+			if (type == 'r') arg[ry] -= 32;
+			if (type == 'l') arg[ry] += 32;
 			if (type == 'u') {
 				arg[cx] -= 33*sin[arg[ry]&255];
 				arg[cz] += 33*cos[arg[ry]&255];
 			}
-			if (type == 'd') {
-				arg[ry] += 64;
-			}
+			if (type == 'd') arg[ry] += 64;
 
-			send(sock_t, "HTTP/1.1 302 Found\r\nConnection: close\r\nLocation: https://github.com/blocksrey\r\n\r\nWHAT THE FUCK", 94, 0);
+			send(sock_t, "HTTP/1.1 302 Found\r\nConnection: close\r\nLocation: https://github.com/vec4me\r\n\r\nWHAT THE FUCK", 94, 0);
 		}
 
 		close(sock_t);
