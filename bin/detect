@@ -1,4 +1,0 @@
-#!/usr/bin/env bash
-# echo DETECT $1 $2 $0
-echo Herewego
-exit 0
