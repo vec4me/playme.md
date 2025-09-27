@@ -1,1 +1,1 @@
-tcc -Os -s serve.c -o serve
+tcc -lm -O2 -o serve serve.c
