@@ -6,8 +6,8 @@
 #include <time.h>
 #include <unistd.h>
 
-// Degrees → radians
-static inline double deg2rad(double deg) { return deg*M_PI/180.0; }
+static inline double rad(double rad) { return rad*256.0/(2*M_PI); }
+static inline double pos(double pos) { return pos*256.0; }
 
 int main(int argc, char *argv[]) {
   if (argc < 2) {
@@ -31,12 +31,13 @@ int main(int argc, char *argv[]) {
     perror("bind");
     return 1;
   }
+
   if (listen(server, 5) < 0) {
     perror("listen");
     return 1;
   }
 
-  double state[7] = {0, 3600, -100000, 0, 0, 0, 0};
+  double state[7] = {0.0, 13.0, -300.0, 0.0, 0.0, 0.0, 0.0};
 
   while (1) {
     struct sockaddr_in client;
@@ -55,24 +56,31 @@ int main(int argc, char *argv[]) {
 
     char type = (strncmp(buffer, "GET /", 5) == 0) ? buffer[5] : 0;
 
-   //Japan time sun update
     time_t t = time(NULL);
     struct tm jtime = *gmtime(&t);
     jtime.tm_hour = (jtime.tm_hour + 9)%24;
-    double sun_angle =
-        ((jtime.tm_hour*60 + jtime.tm_min)*360.0)/(24*60);
-    state[4] = sin(deg2rad(sun_angle + 90))*127;
-    state[5] = sin(deg2rad(sun_angle - 90))*127;
+
+    double theta =
+        ((double)jtime.tm_hour + jtime.tm_min/60.0)/24.0*2*M_PI;
+
+    state[4] = sin(theta);
+    state[5] = -cos(theta);
     state[6] = 0;
 
     if (type == 'v') {
-     //Use ffmpeg pipe for GIF, let it manage size
+      double pos_x_r = pos(state[0]);
+      double pos_y_r = pos(state[1]);
+      double pos_z_r = pos(state[2]);
+      double yaw_r = rad(state[3]);
+      double sun_x_r = pos(state[4]);
+      double sun_y_r = pos(state[5]);
+      double sun_z_r = pos(state[6]);
+
       char cmd[512];
       snprintf(cmd, sizeof(cmd),
-               "./asahi_renderer/render %f %f %f %f %f %f %f | "
-               "ffmpeg -loglevel 0 -i - -f gif -",
-               state[0], state[1], state[2], state[3], state[4], state[5],
-               state[6]);
+               "./asahi_renderer/render %f %f %f %f %f %f %f | ffmpeg "
+               "-loglevel 0 -i - -f gif -",
+               pos_x_r, pos_y_r, pos_z_r, yaw_r, sun_x_r, sun_y_r, sun_z_r);
 
       FILE *fp = popen(cmd, "r");
       if (!fp) {
@@ -80,35 +88,57 @@ int main(int argc, char *argv[]) {
         continue;
       }
 
-     //Send HTTP header first
-      const char *header = "HTTP/1.1 200 OK\r\n"
-                           "Cache-Control: max-age=0\r\n"
-                           "Connection: close\r\n"
-                           "Content-Type: image/gif\r\n\r\n";
-      send(sock, header, strlen(header), 0);
+      unsigned char *gif_data = NULL;
+      size_t gif_size = 0;
+      size_t cap = 8192;
+      gif_data = malloc(cap);
+      if (!gif_data) {
+        pclose(fp);
+        close(sock);
+        continue;
+      }
 
-     //Stream GIF directly to socket
-      char buf[8192];
       size_t r;
-      while ((r = fread(buf, 1, sizeof(buf), fp)) > 0) {
-        send(sock, buf, r, 0);
+      while ((r = fread(gif_data + gif_size, 1, cap - gif_size, fp)) > 0) {
+        gif_size += r;
+        if (gif_size == cap) {
+          cap *= 2;
+          unsigned char *tmp = realloc(gif_data, cap);
+          if (!tmp) {
+            free(gif_data);
+            pclose(fp);
+            close(sock);
+            continue;
+          }
+          gif_data = tmp;
+        }
       }
       pclose(fp);
+
+      char header[256];
+      int hlen = snprintf(header, sizeof(header),
+                          "HTTP/1.1 200 OK\r\n"
+                          "Cache-Control: max-age=0\r\n"
+                          "Connection: close\r\n"
+                          "Content-Type: image/gif\r\n"
+                          "Content-Length: %zu\r\n\r\n",
+                          gif_size);
+      send(sock, header, hlen, 0);
+      send(sock, gif_data, gif_size, 0);
+
+      free(gif_data);
     }
     else {
-      if (type == 'r') {
-        state[3] -= 32;//rotate right
+      if (type == 'd')
+        state[3] -= M_PI/4.0;
+      else if (type == 'a')
+        state[3] += M_PI/4.0;
+      else if (type == 'w') {
+        state[0] -= state[1]*sin(state[3]);
+        state[2] -= state[1]*cos(state[3]);
       }
-      else if (type == 'l') {
-        state[3] += 32;//rotate left
-      }
-      else if (type == 'u') {
-        state[0] -= 30*sin(deg2rad(state[3]));
-        state[2] -= 30*sin(deg2rad(state[3] + 90));
-      }
-      else if (type == 'd') {
-        state[3] += 64;//down
-      }
+      else if (type == 's')
+        state[3] += M_PI;
 
       const char *redirect = "HTTP/1.1 302 Found\r\n"
                              "Connection: close\r\n"
